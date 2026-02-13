@@ -1,0 +1,12 @@
+
+For detection
+"python -m venv venv"
+"venv\Scripts\activate"
+
+"pip install flask flask-cors ultralytics opencv-python torch torchvision"
+
+
+
+For api
+get .env file
+"npm install @google/generative-ai"

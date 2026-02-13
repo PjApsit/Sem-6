@@ -1,0 +1,10 @@
+-- For Chatbot --
+cd chatbot
+"conda activate chatbot"
+"python app.py"
+
+
+--For Food Detection--
+cd FoodDetectionBackend
+"venv\Scripts\activate"
+"python app.py"

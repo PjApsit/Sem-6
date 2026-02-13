@@ -1,0 +1,3 @@
+foodApi.js
+app.py from FoodDetectionBackend
+-To use diffrent server url.--

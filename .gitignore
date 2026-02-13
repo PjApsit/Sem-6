@@ -1,0 +1,24 @@
+# Dependencies
+**/node_modules/
+**/venv/
+**/.venv/
+**/__pycache__/
+
+# Environment variables
+**/.env
+
+# Build outputs
+**/dist/
+**/build/
+
+# IDE files
+**/.vscode/
+**/.idea/
+**/.DS_Store
+
+# Logs
+**/*.log
+
+# Specific to FoodDetectionBackend
+**/uploads/
+**/runs/  # YOLO output
