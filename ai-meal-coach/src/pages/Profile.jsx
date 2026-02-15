@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '@/context/UserContext';
-import { User, LogOut, Settings, Target, Activity, Utensils, Scale } from 'lucide-react';
+import { User, LogOut, Settings, Target, Activity, Utensils, Scale, Edit2, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -28,13 +28,60 @@ const dietLabels = {
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, dailyGoals, logout } = useUser();
+  const { user, dailyGoals, logout, updateUser } = useUser();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editData, setEditData] = useState(null);
 
   if (!user) return null;
+
+  // Safe number converter - prevents NaN display
+  const safeNumber = (value, defaultValue = 0) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? defaultValue : num;
+  };
+
+  // Initialize edit data
+  if (isEditMode && !editData) {
+    setEditData({
+      age: safeNumber(user.age, 25),
+      weight: safeNumber(user.weight, 70),
+      height: safeNumber(user.height, 170),
+      activityLevel: user.activityLevel || 'moderate',
+      goal: user.goal || 'maintain',
+      dietPreference: user.dietPreference || 'vegetarian',
+      dietaryRestrictions: user.dietaryRestrictions || '',
+      allergens: user.allergens || [],
+    });
+  }
 
   const handleLogout = () => {
     logout();
     navigate('/auth');
+  };
+
+  const handleSaveChanges = async () => {
+    try {
+      // Update user with new data (this will sync to Firebase if online)
+      await updateUser(editData);
+      
+      // Also update nutrition_users database for login purposes
+      const savedUsers = JSON.parse(localStorage.getItem('nutrition_users') || '[]');
+      const userIndex = savedUsers.findIndex(u => u.email === user.email);
+      if (userIndex >= 0) {
+        savedUsers[userIndex] = { ...savedUsers[userIndex], ...editData };
+        localStorage.setItem('nutrition_users', JSON.stringify(savedUsers));
+      }
+      
+      setIsEditMode(false);
+      setEditData(null);
+    } catch (error) {
+      console.error('Error saving changes:', error);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditMode(false);
+    setEditData(null);
   };
 
   const profileItems = [
@@ -57,13 +104,204 @@ const Profile = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="pt-safe px-4 pt-6 pb-4">
-        <div className="max-w-lg mx-auto">
-          <h1 className="text-xl font-display font-bold text-foreground">Profile</h1>
-          <p className="text-sm text-muted-foreground">Manage your account</p>
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-display font-bold text-foreground">Profile</h1>
+            <p className="text-sm text-muted-foreground">Manage your account</p>
+          </div>
+          {!isEditMode && (
+            <button
+              onClick={() => setIsEditMode(true)}
+              className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="px-4 pb-8 max-w-lg mx-auto space-y-6">
+      {isEditMode && editData ? (
+        // EDIT MODE
+        <main className="px-4 pb-8 max-w-lg mx-auto space-y-6">
+          <div className="glass-card p-6">
+            <h2 className="text-lg font-display font-bold text-foreground mb-6">Edit Profile</h2>
+            
+            <div className="space-y-4">
+              {/* Age */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Age (years)</label>
+                <input
+                  type="number"
+                  min="15"
+                  max="120"
+                  value={isNaN(editData.age) ? '' : editData.age}
+                  onChange={(e) => setEditData({ ...editData, age: safeNumber(e.target.value, editData.age) })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Height */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Height (cm)</label>
+                <input
+                  type="number"
+                  min="120"
+                  max="250"
+                  step="0.5"
+                  value={isNaN(editData.height) ? '' : editData.height}
+                  onChange={(e) => setEditData({ ...editData, height: safeNumber(e.target.value, editData.height) })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Weight */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Weight (kg)</label>
+                <input
+                  type="number"
+                  min="30"
+                  max="300"
+                  step="0.1"
+                  value={isNaN(editData.weight) ? '' : editData.weight}
+                  onChange={(e) => setEditData({ ...editData, weight: safeNumber(e.target.value, editData.weight) })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Activity Level */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Activity Level</label>
+                <select
+                  value={editData.activityLevel}
+                  onChange={(e) => setEditData({ ...editData, activityLevel: e.target.value })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                >
+                  <option value="sedentary">Sedentary</option>
+                  <option value="light">Lightly Active</option>
+                  <option value="moderate">Moderately Active</option>
+                  <option value="active">Active</option>
+                  <option value="very_active">Very Active</option>
+                </select>
+              </div>
+
+              {/* Goal */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Goal</label>
+                <select
+                  value={editData.goal}
+                  onChange={(e) => setEditData({ ...editData, goal: e.target.value })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                >
+                  <option value="weight_loss">Weight Loss</option>
+                  <option value="maintain">Maintain Weight</option>
+                  <option value="weight_gain">Weight Gain</option>
+                </select>
+              </div>
+
+              {/* Diet Preference */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Diet Preference</label>
+                <select
+                  value={editData.dietPreference}
+                  onChange={(e) => setEditData({ ...editData, dietPreference: e.target.value })}
+                  className="w-full h-12 px-4 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors"
+                >
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="non_vegetarian">Non-Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="eggetarian">Eggetarian</option>
+                </select>
+              </div>
+
+              {/* Dietary Restrictions */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Dietary Restrictions (Optional)</label>
+                <textarea
+                  value={editData.dietaryRestrictions}
+                  onChange={(e) => setEditData({ ...editData, dietaryRestrictions: e.target.value })}
+                  placeholder="e.g., Low sodium, Low sugar, Kosher, Halal..."
+                  className="w-full h-20 px-4 py-3 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors resize-none"
+                />
+              </div>
+
+              {/* Allergens */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-3">Allergens</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {[
+                    { id: 'dairy', label: 'Dairy (Milk, Yogurt, Cheese, Cottage Cheese)' },
+                    { id: 'eggs', label: 'Eggs (Whole Eggs, Egg Whites)' },
+                    { id: 'fish', label: 'Fish (Salmon, Tuna)' },
+                    { id: 'gluten', label: 'Gluten (Breads, Pasta, Couscous, Bulgur, Tortillas)' },
+                    { id: 'wheat', label: 'Wheat (Breads, Pasta, Couscous, Bulgur, Tortillas)' },
+                    { id: 'soy', label: 'Soy (Tofu, Tempeh)' },
+                    { id: 'tree_nuts', label: 'Tree Nuts (Almonds, Walnuts)' },
+                    { id: 'peanuts', label: 'Peanuts (Peanut Butter)' },
+                  ].map((allergen) => (
+                    <button
+                      key={allergen.id}
+                      onClick={() => {
+                        if (editData.allergens.includes(allergen.id)) {
+                          setEditData({
+                            ...editData,
+                            allergens: editData.allergens.filter(a => a !== allergen.id),
+                          });
+                        } else {
+                          setEditData({
+                            ...editData,
+                            allergens: [...editData.allergens, allergen.id],
+                          });
+                        }
+                      }}
+                      className={cn(
+                        'w-full p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3',
+                        editData.allergens.includes(allergen.id)
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-muted'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0',
+                          editData.allergens.includes(allergen.id)
+                            ? 'border-primary bg-primary'
+                            : 'border-border bg-transparent'
+                        )}
+                      >
+                        {editData.allergens.includes(allergen.id) && (
+                          <Check className="w-4 h-4 text-primary-foreground" />
+                        )}
+                      </div>
+                      <p className="font-medium text-foreground flex-1">{allergen.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Save/Cancel Buttons */}
+            <div className="flex gap-3 mt-6">
+              <Button
+                onClick={handleCancel}
+                variant="outline"
+                className="flex-1 h-12 rounded-xl"
+              >
+                <X className="w-5 h-5 mr-2" />
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveChanges}
+                className="flex-1 h-12 rounded-xl gradient-primary text-primary-foreground font-semibold"
+              >
+                <Check className="w-5 h-5 mr-2" />
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </main>
+      ) : (
+        // VIEW MODE
+        <main className="px-4 pb-8 max-w-lg mx-auto space-y-6">
         {/* User Card */}
         <div className="glass-card p-6 text-center">
           <div className="w-20 h-20 rounded-full gradient-primary mx-auto flex items-center justify-center mb-4">
@@ -146,6 +384,7 @@ const Profile = () => {
           Log Out
         </Button>
       </main>
+      )}
     </div>
   );
 };

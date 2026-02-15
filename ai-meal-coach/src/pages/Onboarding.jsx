@@ -91,7 +91,8 @@ const Onboarding = () => {
     activityLevel: 'moderate',
     goal: 'maintain',
     dietPreference: 'vegetarian',
-    allergies: [],
+    dietaryRestrictions: signupData.dietaryRestrictions || '',
+    allergens: signupData.allergens || [],
   });
 
   // Redirect if already authenticated
@@ -102,8 +103,8 @@ const Onboarding = () => {
   }, [isAuthenticated, navigate]);
 
   const steps = fromSignup 
-    ? ['body', 'activity', 'goal', 'diet'] 
-    : ['welcome', 'basic', 'body', 'activity', 'goal', 'diet'];
+    ? ['body', 'activity', 'goal', 'diet', 'allergens'] 
+    : ['welcome', 'basic', 'body', 'activity', 'goal', 'diet', 'allergens'];
   const currentStepIndex = steps.indexOf(step);
 
   const nextStep = () => {
@@ -454,6 +455,97 @@ const Onboarding = () => {
                   )}
                 </button>
               ))}
+            </div>
+
+            <Button
+              onClick={nextStep}
+              className="w-full h-14 gradient-primary text-primary-foreground font-semibold rounded-2xl mt-8"
+            >
+              Continue
+              <ChevronRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
+        )}
+
+        {/* Dietary Restrictions & Allergens Step */}
+        {step === 'allergens' && (
+          <div className="flex-1 flex flex-col animate-fade-in">
+            <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+              Dietary restrictions & allergens
+            </h2>
+            <p className="text-muted-foreground mb-8">
+              Help us plan safe and suitable meals for you
+            </p>
+
+            <div className="space-y-6 flex-1 overflow-y-auto">
+              {/* Dietary Restrictions */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">
+                  Dietary Restrictions (Optional)
+                </label>
+                <textarea
+                  value={formData.dietaryRestrictions}
+                  onChange={(e) => setFormData({ ...formData, dietaryRestrictions: e.target.value })}
+                  placeholder="e.g., Low sodium, Low sugar, Kosher, Halal, No red meat..."
+                  className="w-full h-24 px-4 py-3 rounded-xl bg-muted border border-border focus:border-primary focus:outline-none transition-colors resize-none"
+                />
+              </div>
+
+              {/* Allergens */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-3">
+                  Known Allergens
+                </label>
+                <div className="space-y-3">
+                  {[
+                    { id: 'dairy', label: 'Dairy (Milk, Yogurt, Cheese, Cottage Cheese)' },
+                    { id: 'eggs', label: 'Eggs (Whole Eggs, Egg Whites)' },
+                    { id: 'fish', label: 'Fish (Salmon, Tuna)' },
+                    { id: 'gluten', label: 'Gluten (Breads, Pasta, Couscous, Bulgur, Tortillas)' },
+                    { id: 'wheat', label: 'Wheat (Breads, Pasta, Couscous, Bulgur, Tortillas)' },
+                    { id: 'soy', label: 'Soy (Tofu, Tempeh)' },
+                    { id: 'tree_nuts', label: 'Tree Nuts (Almonds, Walnuts)' },
+                    { id: 'peanuts', label: 'Peanuts (Peanut Butter)' },
+                  ].map((allergen) => (
+                    <button
+                      key={allergen.id}
+                      onClick={() => {
+                        if (formData.allergens.includes(allergen.id)) {
+                          setFormData({
+                            ...formData,
+                            allergens: formData.allergens.filter(a => a !== allergen.id),
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            allergens: [...formData.allergens, allergen.id],
+                          });
+                        }
+                      }}
+                      className={cn(
+                        'w-full p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3',
+                        formData.allergens.includes(allergen.id)
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-muted'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'w-5 h-5 rounded border-2 flex items-center justify-center transition-all',
+                          formData.allergens.includes(allergen.id)
+                            ? 'border-primary bg-primary'
+                            : 'border-border bg-transparent'
+                        )}
+                      >
+                        {formData.allergens.includes(allergen.id) && (
+                          <Check className="w-4 h-4 text-primary-foreground" />
+                        )}
+                      </div>
+                      <p className="font-medium text-foreground flex-1">{allergen.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <Button

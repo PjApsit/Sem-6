@@ -218,26 +218,29 @@ const MealLog = () => {
 
               {typeMeals.length > 0 ? (
                 <div className="divide-y divide-border">
-                  {typeMeals.map((meal) => (
-                    <div key={meal.id} className="p-4 flex items-center gap-3">
-                      <div 
-                        className="w-2 h-10 rounded-full"
-                        style={{ backgroundColor: config.color }}
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{meal.foodItem.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {meal.quantity > 1 ? `${meal.quantity} servings` : meal.foodItem.servingSize}
-                        </p>
+                  {typeMeals.map((meal) => {
+                    const nutrition = meal.nutrition || {};
+                    return (
+                      <div key={meal.id} className="p-4 flex items-center gap-3">
+                        <div 
+                          className="w-2 h-10 rounded-full"
+                          style={{ backgroundColor: config.color }}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">{meal.name || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {meal.quantity > 1 ? `${meal.quantity}x serving` : `1 serving`}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground">
+                            {Math.round((nutrition.calories || 0) * (meal.quantity || 1))}
+                          </p>
+                          <p className="text-xs text-muted-foreground">kcal</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-foreground">
-                          {Math.round(meal.foodItem.nutrition.calories * meal.quantity)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">kcal</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-6 text-center">

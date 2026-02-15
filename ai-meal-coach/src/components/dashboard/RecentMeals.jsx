@@ -42,30 +42,40 @@ export const RecentMeals = () => {
       </h3>
       
       <div className="space-y-2">
-        {sortedMeals.map((meal) => (
-          <div key={meal.id} className="glass-card p-3 flex items-center gap-3 animate-fade-in">
-            <span className="text-2xl">{mealTypeIcons[meal.mealType]}</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{meal.foodItem.name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full capitalize', mealTypeColors[meal.mealType])}>
-                  {meal.mealType}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {meal.quantity > 1 ? `${meal.quantity}x • ` : ''}
-                  {new Date(meal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+        {sortedMeals.map((meal) => {
+          if (!meal || !meal.name) {
+            console.warn('Invalid meal object:', meal);
+            return null;
+          }
+          const category = meal.category || 'snack';
+          const nutrition = meal.nutrition || {};
+          const calories = nutrition.calories || 0;
+          
+          return (
+            <div key={meal.id} className="glass-card p-3 flex items-center gap-3 animate-fade-in">
+              <span className="text-2xl">{mealTypeIcons[category]}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">{meal.name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full capitalize', mealTypeColors[category])}>
+                    {category}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {meal.quantity > 1 ? `${meal.quantity}x • ` : ''}
+                    {new Date(meal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
+              <div className="text-right">
+                <p className="font-semibold text-foreground">{Math.round(calories * meal.quantity)}</p>
+                <p className="text-xs text-muted-foreground">kcal</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeMeal(meal.id)}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
-            <div className="text-right">
-              <p className="font-semibold text-foreground">{Math.round(meal.foodItem.nutrition.calories * meal.quantity)}</p>
-              <p className="text-xs text-muted-foreground">kcal</p>
-            </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeMeal(meal.id)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

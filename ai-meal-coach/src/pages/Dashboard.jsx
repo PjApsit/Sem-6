@@ -3,7 +3,7 @@ import { useUser } from '@/context/UserContext';
 import { CalorieRing } from '@/components/dashboard/CalorieRing';
 import { MacroCards } from '@/components/dashboard/MacroCards';
 import { RecentMeals } from '@/components/dashboard/RecentMeals';
-// import { Recommendations } from '@/components/dashboard/Recommendations';
+import { Recommendations } from '@/components/dashboard/Recommendations';
 import { Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ const Dashboard = () => {
         </Link>
 
         {/* Recommendations */}
-        {/* <Recommendations /> */}
+        <Recommendations />
 
         {/* Recent Meals */}
         <RecentMeals />

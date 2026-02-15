@@ -53,21 +53,22 @@ const DataExportDialog = () => {
   };
 
   const prepareMealData = (meals) => {
-    return meals.map(meal => ({
-      id: meal.id,
-      date: format(new Date(meal.timestamp), 'yyyy-MM-dd'),
-      time: format(new Date(meal.timestamp), 'HH:mm'),
-      mealType: meal.mealType,
-      foodName: meal.foodItem.name,
-      category: meal.foodItem.category,
-      servingSize: meal.foodItem.servingSize,
-      quantity: meal.quantity,
-      calories: Math.round(meal.foodItem.nutrition.calories * meal.quantity),
-      protein: Math.round(meal.foodItem.nutrition.protein * meal.quantity * 10) / 10,
-      carbohydrates: Math.round(meal.foodItem.nutrition.carbohydrates * meal.quantity * 10) / 10,
-      fat: Math.round(meal.foodItem.nutrition.fat * meal.quantity * 10) / 10,
-      fiber: Math.round(meal.foodItem.nutrition.fiber * meal.quantity * 10) / 10,
-    }));
+    return meals.map(meal => {
+      const nutrition = meal.nutrition || {};
+      return {
+        id: meal.id,
+        date: format(new Date(meal.timestamp), 'yyyy-MM-dd'),
+        time: format(new Date(meal.timestamp), 'HH:mm'),
+        mealType: meal.category || 'snack',
+        foodName: meal.name || 'Unknown',
+        quantity: meal.quantity || 1,
+        calories: Math.round((nutrition.calories || 0) * (meal.quantity || 1)),
+        protein: Math.round((nutrition.protein || 0) * (meal.quantity || 1) * 10) / 10,
+        carbohydrates: Math.round((nutrition.carbohydrates || 0) * (meal.quantity || 1) * 10) / 10,
+        fat: Math.round((nutrition.fat || 0) * (meal.quantity || 1) * 10) / 10,
+        fiber: Math.round((nutrition.fiber || 0) * (meal.quantity || 1) * 10) / 10,
+      };
+    });
   };
 
   const prepareDailySummary = (meals) => {
@@ -75,6 +76,9 @@ const DataExportDialog = () => {
     
     meals.forEach(meal => {
       const dateKey = format(new Date(meal.timestamp), 'yyyy-MM-dd');
+      const nutrition = meal.nutrition || {};
+      const quantity = meal.quantity || 1;
+      
       if (!dailyData[dateKey]) {
         dailyData[dateKey] = {
           date: dateKey,
@@ -87,11 +91,27 @@ const DataExportDialog = () => {
         };
       }
       
-      dailyData[dateKey].totalCalories += meal.foodItem.nutrition.calories * meal.quantity;
-      dailyData[dateKey].totalProtein += meal.foodItem.nutrition.protein * meal.quantity;
-      dailyData[dateKey].totalCarbohydrates += meal.foodItem.nutrition.carbohydrates * meal.quantity;
-      dailyData[dateKey].totalFat += meal.foodItem.nutrition.fat * meal.quantity;
-      dailyData[dateKey].totalFiber += meal.foodItem.nutrition.fiber * meal.quantity;
+      dailyData[dateKey].totalCalories += (nutrition.calories || 0) * quantity;
+      dailyData[dateKey].totalProtein += (nutrition.protein || 0) * quantity;
+      dailyData[dateKey].totalCarbohydrates += (nutrition.carbohydrates || 0) * quantity;
+      dailyData[dateKey].totalFat += (nutrition.fat || 0) * quantity;
+      dailyData[dateKey].totalFiber += (nutrition.fiber || 0) * quantity;
+      dailyData[dateKey].mealCount += 1;
+    });
+          totalCalories: 0,
+          totalProtein: 0,
+          totalCarbohydrates: 0,
+          totalFat: 0,
+          totalFiber: 0,
+          mealCount: 0,
+        };
+      }
+      
+      dailyData[dateKey].totalCalories += (nutrition.calories || 0) * quantity;
+      dailyData[dateKey].totalProtein += (nutrition.protein || 0) * quantity;
+      dailyData[dateKey].totalCarbohydrates += (nutrition.carbohydrates || 0) * quantity;
+      dailyData[dateKey].totalFat += (nutrition.fat || 0) * quantity;
+      dailyData[dateKey].totalFiber += (nutrition.fiber || 0) * quantity;
       dailyData[dateKey].mealCount += 1;
     });
 

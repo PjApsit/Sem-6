@@ -209,17 +209,43 @@ const FoodScanner = () => {
   };
 
   const confirmMeal = () => {
-    if (!selectedFood || !user) return;
+    console.log('=== CONFIRMING MEAL ===');
+    console.log('selectedFood:', selectedFood);
+    console.log('user:', user);
+    
+    if (!selectedFood || !user) {
+      console.error('❌ EARLY RETURN: selectedFood or user is null/undefined');
+      return;
+    }
+    
+    console.log('selectedFood.name:', selectedFood.name);
+    console.log('selectedFood.nutrition:', selectedFood.nutrition);
+    console.log('user.id:', user.id);
+    
+    // Ensure nutrition has all required properties with defaults
+    const nutrition = selectedFood.nutrition || {};
+    const defaultNutrition = {
+      calories: nutrition.calories || 0,
+      protein: nutrition.protein || 0,
+      carbohydrates: nutrition.carbohydrates || 0,
+      fat: nutrition.fat || 0,
+      fiber: nutrition.fiber || 0,
+      sugar: nutrition.sugar || 0,
+    };
     
     const meal = {
       id: `meal_${Date.now()}`,
       userId: user.id,
-      foodItem: selectedFood,
+      name: selectedFood.name,
+      category: mealType,
       quantity,
-      mealType,
-      timestamp: new Date(),
-      imageUrl: imagePreview || undefined,
+      timestamp: new Date().toISOString(),
+      nutrition: defaultNutrition,
     };
+    
+    console.log('📦 FINAL MEAL OBJECT:', JSON.stringify(meal, null, 2));
+    console.log('Meal object is null?', meal === null);
+    console.log('Meal object is undefined?', meal === undefined);
     
     addMeal(meal);
     
