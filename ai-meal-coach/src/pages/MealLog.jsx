@@ -26,24 +26,33 @@ const MealLog = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const meals = getMealsByDate(selectedDate);
-  const nutrition = getNutritionByDate(selectedDate);
+  const nutrition = getNutritionByDate(selectedDate) || {
+    calories: 0,
+    protein: 0,
+    carbohydrates: 0,
+    fat: 0,
+  };
+
+
 
   // Group meals by type
   const mealsByType = meals.reduce((acc, meal) => {
-    if (!acc[meal.mealType]) {
-      acc[meal.mealType] = [];
+    const type = meal.category || 'snack';
+    if (!acc[type]) {
+      acc[type] = [];
     }
-    acc[meal.mealType].push(meal);
+    acc[type].push(meal);
     return acc;
   }, {});
 
   // Chart data
   const chartData = dailyGoals ? [
-    { name: 'Calories', consumed: nutrition.calories, goal: dailyGoals.calories, unit: 'kcal' },
-    { name: 'Protein', consumed: nutrition.protein, goal: dailyGoals.protein, unit: 'g' },
-    { name: 'Carbs', consumed: nutrition.carbohydrates, goal: dailyGoals.carbohydrates, unit: 'g' },
-    { name: 'Fat', consumed: nutrition.fat, goal: dailyGoals.fat, unit: 'g' },
+    { name: 'Calories', consumed: nutrition.calories || 0, goal: dailyGoals.calories || 0, unit: 'kcal' },
+    { name: 'Protein', consumed: nutrition.protein || 0, goal: dailyGoals.protein || 0, unit: 'g' },
+    { name: 'Carbs', consumed: nutrition.carbohydrates || 0, goal: dailyGoals.carbohydrates || 0, unit: 'g' },
+    { name: 'Fat', consumed: nutrition.fat || 0, goal: dailyGoals.fat || 0, unit: 'g' },
   ] : [];
+
 
   const handlePreviousDay = () => {
     setSelectedDate(prev => subDays(prev, 1));
@@ -75,7 +84,7 @@ const MealLog = () => {
             </h1>
             <DataExportDialog />
           </div>
-          
+
           {/* Date Picker */}
           <div className="flex items-center justify-between mt-3">
             <Button
@@ -86,7 +95,7 @@ const MealLog = () => {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            
+
             <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -97,7 +106,7 @@ const MealLog = () => {
                   )}
                 >
                   <CalendarIcon className="h-4 w-4" />
-                  {isToday(selectedDate) 
+                  {isToday(selectedDate)
                     ? `Today, ${format(selectedDate, 'MMM d')}`
                     : format(selectedDate, 'EEEE, MMMM d')
                   }
@@ -114,7 +123,7 @@ const MealLog = () => {
                 />
               </PopoverContent>
             </Popover>
-            
+
             <Button
               variant="ghost"
               size="icon"
@@ -135,50 +144,58 @@ const MealLog = () => {
             <Flame className="w-4 h-4 text-accent" />
             Nutrition Summary
           </h3>
-          
+
           {chartData.length > 0 && (
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" barGap={8}>
-                  <XAxis type="number" hide />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    axisLine={false}
-                    tickLine={false}
-                    width={60}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  />
-                  <Bar 
-                    dataKey="goal" 
-                    fill="hsl(var(--muted))" 
-                    radius={[0, 4, 4, 0]} 
-                    barSize={12}
-                  />
-                  <Bar 
-                    dataKey="consumed" 
-                    radius={[0, 4, 4, 0]} 
-                    barSize={12}
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell 
-                        key={index} 
-                        fill={
-                          entry.consumed > entry.goal 
-                            ? 'hsl(var(--destructive))' 
-                            : index === 0 
-                              ? 'hsl(var(--primary))' 
-                              : index === 1 
-                                ? 'hsl(var(--accent))' 
-                                : index === 2 
-                                  ? 'hsl(var(--warning))' 
-                                  : 'hsl(var(--success))'
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="py-2 w-full flex justify-center overflow-hidden">
+              <BarChart
+                width={380}
+                height={220}
+                data={chartData}
+                layout="vertical"
+                margin={{ top: 10, right: 40, left: 10, bottom: 10 }}
+                barSize={16}
+                barGap={-16}
+              >
+                <XAxis type="number" hide domain={[0, 'dataMax']} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  width={70}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 13, fontWeight: 500 }}
+                />
+                <Bar
+                  dataKey="goal"
+                  fill="hsl(var(--muted))"
+                  fillOpacity={0.15}
+                  radius={[0, 6, 6, 0]}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="consumed"
+                  radius={[0, 6, 6, 0]}
+                  animationDuration={800}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={
+                        entry.consumed > entry.goal
+                          ? 'hsl(var(--destructive))'
+                          : index === 0
+                            ? 'hsl(var(--primary))'
+                            : index === 1
+                              ? 'hsl(var(--accent))'
+                              : index === 2
+                                ? 'hsl(var(--warning))'
+                                : 'hsl(var(--success))'
+                      }
+                      fillOpacity={0.9}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
             </div>
           )}
 
@@ -200,7 +217,7 @@ const MealLog = () => {
           const typeMeals = mealsByType[type] || [];
           const config = mealTypeConfig[type];
           const totalCals = typeMeals.reduce(
-            (sum, m) => sum + m.foodItem.nutrition.calories * m.quantity, 
+            (sum, m) => sum + (m.nutrition?.calories || 0) * (m.quantity || 1),
             0
           );
 
@@ -222,7 +239,7 @@ const MealLog = () => {
                     const nutrition = meal.nutrition || {};
                     return (
                       <div key={meal.id} className="p-4 flex items-center gap-3">
-                        <div 
+                        <div
                           className="w-2 h-10 rounded-full"
                           style={{ backgroundColor: config.color }}
                         />

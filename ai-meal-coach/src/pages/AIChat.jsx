@@ -3,17 +3,18 @@ import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/context/UserContext';
 import { sendChatMessage } from '@/services/chatApi';
+import { askGemini } from '@/services/aiService';
 import { cn } from '@/lib/utils';
 
 const quickPrompts = [
-  "What should I eat for dinner?",
-  "High protein meal ideas",
+  "Diet plan",
+  "New Plan",
   "Weight loss tips",
   "Healthy breakfast options",
 ];
 
 const AIChat = () => {
-  const { user } = useUser();
+  const { user, getTodaysNutrition, dailyGoals } = useUser();
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
@@ -50,13 +51,40 @@ const AIChat = () => {
     setIsLoading(true);
 
     try {
-      // Call the real Flask API
-      const response = await sendChatMessage(text, user?.id || 'default_user');
+      // Get latest nutrition context
+      const todaysNutrition = getTodaysNutrition();
+
+      // Call the real Flask API with profile syncing
+      const response = await sendChatMessage(text, user?.id || 'default_user', user);
+
+      let assistantContent = response.response || response;
+
+      // Check if backend is unsure - if so, fallback to Gemini
+      const fallbackTriggers = [
+        "I'm not sure what you mean",
+        "Stick to the plan",
+        "Type 'reset' to start over"
+      ];
+
+      const isUnsure = fallbackTriggers.some(trigger =>
+        typeof assistantContent === 'string' && assistantContent.includes(trigger)
+      );
+
+      // Trigger Gemini if backend is unsure
+      if (isUnsure) {
+        console.log('🤖 Backend unsure, falling back to Gemini...');
+        const geminiResponse = await askGemini(text, {
+          user,
+          todaysNutrition,
+          dailyGoals
+        });
+        assistantContent = geminiResponse;
+      }
 
       const assistantMessage = {
         id: `assistant_${Date.now()}`,
         role: 'assistant',
-        content: response.response || response, // Handle both old and new API response format
+        content: assistantContent,
         timestamp: new Date(),
       };
 

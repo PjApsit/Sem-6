@@ -37,10 +37,16 @@ class ConversationManager:
     STATE_ONBOARDING_HEIGHT = "onboarding_height"
     STATE_ONBOARDING_AGE = "onboarding_age"
     STATE_ONBOARDING_GENDER = "onboarding_gender"  # Added for model accuracy
+    STATE_ONBOARDING_DIET = "onboarding_diet"
+    STATE_ONBOARDING_RESTRICTIONS = "onboarding_restrictions"
+    STATE_ONBOARDING_ALLERGIES = "onboarding_allergies"
     STATE_ONBOARDING_ACTIVITY = "onboarding_activity"
     STATE_READY_FOR_PLAN = "ready_for_plan"
     STATE_SHOWING_ROADMAP = "showing_roadmap"
-    STATE_ONBOARDING_DIET = "onboarding_diet"
+    
+    STANDARD_ALLERGENS = [
+        "dairy", "eggs", "fish", "gluten", "wheat", "soy", "tree nuts", "peanuts"
+    ]
     # Validation ranges
     MIN_WEIGHT = 40  # kg
     MAX_WEIGHT = 200
@@ -157,30 +163,93 @@ class ConversationManager:
     def adapt_model2_to_model3(self, model2_output: Dict, user_profile: Dict) -> Dict:
         """
         CRITICAL FIX: Adapt Model 2 output for Model 3.
+        Includes allergen transformation and restriction list preparation.
         """
+        # Start with base restrictions (like 'vegetarian')
+        raw_restrictions = user_profile.get("dietary_restrictions", "")
+        if isinstance(raw_restrictions, list):
+            restrictions = raw_restrictions
+        else:
+            # Parse CSV to list
+            restrictions = [r.strip().lower() for r in raw_restrictions.split(",") if r.strip()]
+        
+        # Add allergens as 'no_<allergen>'
+        user_allergens = user_profile.get("allergens", [])
+        for allergen in user_allergens:
+            allergen = allergen.lower().strip()
+            # If user said 'tree nuts' or 'peanuts', we can also add 'no_nuts' for the engine's special handler
+            if allergen in ["tree nuts", "peanuts", "nuts"]:
+                if "no_nuts" not in restrictions:
+                    restrictions.append("no_nuts")
+            
+            # Use original name with 'no_' prefix for direct matching
+            tag = f"no_{allergen}"
+            if tag not in restrictions:
+                restrictions.append(tag)
+                
         return {
             "target_calories": model2_output.get("target_calories"),
-            # Ensure fitness_goal is passed correctly
             "fitness_goal": user_profile["fitness_goal"],
-            "dietary_restrictions": user_profile.get("dietary_restrictions", []),
+            "dietary_restrictions": restrictions,
         }
 
-    def process_message(self, user_id: str, message: str) -> str:
+    def process_message(self, user_id: str, message: str, profile_update: Dict = None) -> str:
         """Main handler for user messages."""
         conv = self.get_user_conversation(user_id)
         conv["last_interaction"] = datetime.now().isoformat()
+
+        # Update profile if provided from frontend
+        if profile_update:
+            self._sync_profile(conv, profile_update)
 
         response = self._handle_state(conv, message)
 
         self._save_conversations()
         return response
 
+    def _sync_profile(self, conv: Dict, updates: Dict):
+        """Sync frontend profile data to backend state."""
+        profile = conv["profile"]
+        
+        # Map frontend names to backend names if they differ
+        mapping = {
+            "age": "age",
+            "weight": "weight_kg",
+            "height": "height_cm",
+            "activityLevel": "activity_level",
+            "fitnessGoal": "fitness_goal",
+            "dietaryPreference": "dietary_restrictions",
+            "allergens": "allergens",
+            "dietaryRestrictions": "dietary_restrictions"
+        }
+
+        for fe_key, be_key in mapping.items():
+            if fe_key in updates and updates[fe_key] is not None:
+                val = updates[fe_key]
+                if fe_key == "dietaryPreference":
+                    # Only override if it's set and valid
+                    if val.lower() in ["veg", "vegetarian", "vegan"]:
+                        profile[be_key] = "vegetarian"
+                elif fe_key == "allergens":
+                    profile[be_key] = val if isinstance(val, list) else [val]
+                elif fe_key == "dietaryRestrictions":
+                    # Append if there's already something from dietaryPreference
+                    existing = profile.get("dietary_restrictions", "")
+                    if existing and val:
+                        profile["dietary_restrictions"] = f"{existing}, {val}"
+                    elif val:
+                        profile["dietary_restrictions"] = val
+                else:
+                    profile[be_key] = val
+
     def _handle_state(self, conv: Dict, message: str) -> str:
         state = conv["current_state"]
         profile = conv["profile"]
 
-        # ✅ CRITICAL FIX #2: UNIVERSAL RESET HANDLER (works in ANY state)
-        if message.strip().lower() in ["reset", "restart", "start over", "new"]:
+        msg_clean = message.strip().lower()
+
+        # ✅ UNIVERSAL RESET HANDLER
+        if msg_clean in ["reset", "restart", "start over", "new"]:
             # Create fresh conversation state with clean profile
             conv["current_state"] = self.STATE_GREETING
             conv["profile"] = {
@@ -191,10 +260,22 @@ class ConversationManager:
                 "activity_level": None,
                 "fitness_goal": None,
                 "current_week": 1,
-                "dietary_restrictions": [],
+                "dietary_restrictions": "",
+                "allergens": [],
             }
             conv["message_count"] = 0
             return "Starting fresh! What's your new goal? (lose weight / gain muscle / maintain)"
+
+        # ✅ DIRECT PLAN REQUEST HANDLER
+        if "diet plan" in msg_clean or "show plan" in msg_clean:
+            # Check if profile is sufficient
+            required = ["weight_kg", "height_cm", "age", "activity_level", "fitness_goal"]
+            if all(profile.get(f) is not None for f in required):
+                conv["current_state"] = self.STATE_READY_FOR_PLAN
+                return self._generate_plan(conv)
+            else:
+                # If incomplete, stay in current state but tell them why
+                return "I'd love to give you a diet plan, but I need some more info first. Let's continue!"
 
         # State: Greeting
         if state == self.STATE_GREETING:
@@ -250,15 +331,44 @@ class ConversationManager:
         elif state == self.STATE_ONBOARDING_DIET:
             msg_clean = message.lower().strip()
             if any(word in msg_clean for word in ["veg", "vegetarian", "vegan"]):
-                profile["dietary_restrictions"] = ["vegetarian"]
-                conv["current_state"] = self.STATE_ONBOARDING_ACTIVITY
-                return "Noted! 🥦 Finally, what is your activity level? (sedentary/light/moderate/active)"
+                profile["dietary_restrictions"] = "vegetarian" # Store as string for flexibility
+                conv["current_state"] = self.STATE_ONBOARDING_RESTRICTIONS
+                return "Noted! 🥦 Any other dietary restrictions? (e.g., Low carb, Halal, No red meat, or 'None')"
             elif "non" in msg_clean:
-                profile["dietary_restrictions"] = [] # No restrictions for non-veg
-                conv["current_state"] = self.STATE_ONBOARDING_ACTIVITY
-                return "Got it! 🍗 Finally, what is your activity level? (sedentary/light/moderate/active)"
+                profile["dietary_restrictions"] = "" # No restrictions for non-veg
+                conv["current_state"] = self.STATE_ONBOARDING_RESTRICTIONS
+                return "Got it! 🍗 Any other dietary restrictions? (e.g., Low carb, Halal, No red meat, or 'None')"
             else:
                 return "Please specify: Are you veg or non-veg?"
+
+        # State: Restrictions
+        elif state == self.STATE_ONBOARDING_RESTRICTIONS:
+            if msg_clean in ["none", "no", "nothing", "na"]:
+                # Keep existing if it was 'vegetarian'
+                if profile.get("dietary_restrictions") != "vegetarian":
+                    profile["dietary_restrictions"] = ""
+            else:
+                # Append or set
+                existing = profile.get("dietary_restrictions", "")
+                if existing:
+                    profile["dietary_restrictions"] = f"{existing}, {message}"
+                else:
+                    profile["dietary_restrictions"] = message
+            
+            conv["current_state"] = self.STATE_ONBOARDING_ALLERGIES
+            return "Almost there! Any known allergies? (Dairy, Eggs, Fish, Gluten, Wheat, Soy, Tree Nuts, Peanuts, or 'None')"
+
+        # State: Allergies
+        elif state == self.STATE_ONBOARDING_ALLERGIES:
+            if msg_clean in ["none", "no", "nothing", "na"]:
+                profile["allergens"] = []
+            else:
+                # Basic matching for standard allergens
+                found = [a for a in self.STANDARD_ALLERGENS if a in msg_clean]
+                profile["allergens"] = found if found else [message] # Fallback to raw string
+            
+            conv["current_state"] = self.STATE_ONBOARDING_ACTIVITY
+            return "Last question! What's your activity level? (sedentary/light/moderate/active)"
             
         # State: Activity (Final Step)
         elif state == self.STATE_ONBOARDING_ACTIVITY:
@@ -268,7 +378,7 @@ class ConversationManager:
                 conv["current_state"] = self.STATE_READY_FOR_PLAN
                 # Trigger generation immediately
                 return self._generate_plan(conv)
-            return "Please choose: sedentary, light, moderate, or active."
+            return f"Please choose: {', '.join(self.ACTIVITY_LEVELS)}"
 
         # State: Ready for Plan (Auto-generate on any input)
         elif state == self.STATE_READY_FOR_PLAN:

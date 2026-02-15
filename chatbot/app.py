@@ -86,12 +86,13 @@ def chat():
 
         message = data.get('message')
         user_id = data.get('user_id')
+        profile_update = data.get('profile') # Accept optional profile data
 
         if not message or not user_id:
             return jsonify({"error": "Missing message or user_id"}), 400
 
         # Process message through state machine
-        response_text = conversation_manager.process_message(user_id, message)
+        response_text = conversation_manager.process_message(user_id, message, profile_update)
 
         # Get current state for debugging/frontend context
         user_state = conversation_manager.get_user_conversation(user_id)

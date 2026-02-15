@@ -1,11 +1,11 @@
-export const sendChatMessage = async (message, userId = "default_user") => {
+export const sendChatMessage = async (message, userId = "default_user", profile = null) => {
   try {
     const response = await fetch("http://localhost:5000/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message, user_id: userId }),
+      body: JSON.stringify({ message, user_id: userId, profile }),
     });
 
     if (!response.ok) {
@@ -31,20 +31,20 @@ export const getDietPlan = async (userProfile) => {
 
   try {
     const userId = userProfile.id || `user_${Date.now()}`;
-    
+
     // Format user profile for chatbot
     const profileMessage = formatProfileForChatbot(userProfile);
-    
+
     // Send profile information to chatbot
     const response = await sendChatMessage(profileMessage, userId);
-    
+
     if (!response || response.status === "error") {
       throw new Error(response.error || "Failed to generate diet plan");
     }
 
     // Parse the chatbot response and extract meal plan
     const dietPlanData = parseChatbotResponse(response, userProfile);
-    
+
     return dietPlanData;
   } catch (error) {
     console.error("Error getting diet plan:", error);
@@ -60,39 +60,39 @@ export const getDietPlan = async (userProfile) => {
 const formatProfileForChatbot = (userProfile) => {
   // Build a single message with all user info
   const messages = [];
-  
+
   // Goal
   if (userProfile.fitnessGoal) {
     messages.push(userProfile.fitnessGoal);
   }
-  
+
   // Weight
   if (userProfile.weight) {
     messages.push(String(userProfile.weight));
   }
-  
+
   // Height
   if (userProfile.height) {
     messages.push(String(userProfile.height));
   }
-  
+
   // Age
   if (userProfile.age) {
     messages.push(String(userProfile.age));
   }
-  
+
   // Dietary preference
   if (userProfile.dietaryPreference) {
     messages.push(userProfile.dietaryPreference);
   } else {
     messages.push("non-veg");
   }
-  
+
   // Activity level
   if (userProfile.activityLevel) {
     messages.push(userProfile.activityLevel);
   }
-  
+
   return messages.join(" ");
 };
 
@@ -105,7 +105,7 @@ const formatProfileForChatbot = (userProfile) => {
 const parseChatbotResponse = (response, userProfile) => {
   try {
     const responseText = response.response || response.chatbot_message || "";
-    
+
     return {
       week: response.week || 1,
       fitness_goal: userProfile.fitnessGoal || "maintenance",
@@ -224,7 +224,7 @@ export const getFoodRecommendations = async (userProfile, nutritionGaps) => {
 
     // Extract food names from chatbot response
     const foods = extractFoodNames(response.response || response.chatbot_message || "");
-    
+
     return foods.map(name => ({
       id: name.toLowerCase().replace(/\s+/g, '_'),
       name: name,
@@ -243,7 +243,7 @@ export const getFoodRecommendations = async (userProfile, nutritionGaps) => {
  */
 const extractFoodNames = (text) => {
   const foods = [];
-  
+
   // Pattern 1: Food mentions with bullets or arrows
   const bulletedFoods = text.match(/[•→\-]\s*([A-Za-z\s]+)/g) || [];
   bulletedFoods.forEach(match => {

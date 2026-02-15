@@ -73,12 +73,12 @@ const DataExportDialog = () => {
 
   const prepareDailySummary = (meals) => {
     const dailyData = {};
-    
+
     meals.forEach(meal => {
       const dateKey = format(new Date(meal.timestamp), 'yyyy-MM-dd');
       const nutrition = meal.nutrition || {};
       const quantity = meal.quantity || 1;
-      
+
       if (!dailyData[dateKey]) {
         dailyData[dateKey] = {
           date: dateKey,
@@ -90,23 +90,7 @@ const DataExportDialog = () => {
           mealCount: 0,
         };
       }
-      
-      dailyData[dateKey].totalCalories += (nutrition.calories || 0) * quantity;
-      dailyData[dateKey].totalProtein += (nutrition.protein || 0) * quantity;
-      dailyData[dateKey].totalCarbohydrates += (nutrition.carbohydrates || 0) * quantity;
-      dailyData[dateKey].totalFat += (nutrition.fat || 0) * quantity;
-      dailyData[dateKey].totalFiber += (nutrition.fiber || 0) * quantity;
-      dailyData[dateKey].mealCount += 1;
-    });
-          totalCalories: 0,
-          totalProtein: 0,
-          totalCarbohydrates: 0,
-          totalFat: 0,
-          totalFiber: 0,
-          mealCount: 0,
-        };
-      }
-      
+
       dailyData[dateKey].totalCalories += (nutrition.calories || 0) * quantity;
       dailyData[dateKey].totalProtein += (nutrition.protein || 0) * quantity;
       dailyData[dateKey].totalCarbohydrates += (nutrition.carbohydrates || 0) * quantity;
@@ -140,7 +124,7 @@ const DataExportDialog = () => {
   const exportAsJSON = (meals) => {
     const mealData = prepareMealData(meals);
     const dailySummary = prepareDailySummary(meals);
-    
+
     const exportData = {
       exportDate: new Date().toISOString(),
       dateRange: dateRangeOptions.find(r => r.value === dateRange)?.label,
@@ -149,7 +133,7 @@ const DataExportDialog = () => {
       summary: {
         totalMeals: meals.length,
         totalDays: dailySummary.length,
-        averageCaloriesPerDay: dailySummary.length > 0 
+        averageCaloriesPerDay: dailySummary.length > 0
           ? Math.round(dailySummary.reduce((sum, d) => sum + d.totalCalories, 0) / dailySummary.length)
           : 0,
       },
@@ -163,7 +147,7 @@ const DataExportDialog = () => {
 
   const exportAsCSV = (meals) => {
     const mealData = prepareMealData(meals);
-    
+
     if (mealData.length === 0) {
       alert('No data to export for the selected date range.');
       return;
@@ -172,7 +156,7 @@ const DataExportDialog = () => {
     const headers = Object.keys(mealData[0]);
     const csvRows = [
       headers.join(','),
-      ...mealData.map(row => 
+      ...mealData.map(row =>
         headers.map(header => {
           const value = row[header];
           // Escape commas and quotes in values
@@ -230,7 +214,7 @@ const DataExportDialog = () => {
 
   const handleExport = () => {
     const filteredMeals = getFilteredMeals();
-    
+
     switch (exportFormat) {
       case 'json':
         exportAsJSON(filteredMeals);
@@ -244,7 +228,7 @@ const DataExportDialog = () => {
       default:
         break;
     }
-    
+
     setIsOpen(false);
   };
 
@@ -305,18 +289,15 @@ const DataExportDialog = () => {
                   <button
                     key={option.value}
                     onClick={() => setExportFormat(option.value)}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      exportFormat === option.value
+                    className={`p-3 rounded-lg border-2 transition-all ${exportFormat === option.value
                         ? 'border-primary bg-primary/10'
                         : 'border-border hover:border-muted-foreground/50'
-                    }`}
+                      }`}
                   >
-                    <Icon className={`h-5 w-5 mx-auto mb-1 ${
-                      exportFormat === option.value ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
-                    <p className={`text-xs font-medium ${
-                      exportFormat === option.value ? 'text-primary' : 'text-foreground'
-                    }`}>
+                    <Icon className={`h-5 w-5 mx-auto mb-1 ${exportFormat === option.value ? 'text-primary' : 'text-muted-foreground'
+                      }`} />
+                    <p className={`text-xs font-medium ${exportFormat === option.value ? 'text-primary' : 'text-foreground'
+                      }`}>
                       {option.label}
                     </p>
                   </button>
@@ -326,8 +307,8 @@ const DataExportDialog = () => {
           </div>
 
           {/* Export Button */}
-          <Button 
-            onClick={handleExport} 
+          <Button
+            onClick={handleExport}
             className="w-full gap-2"
             disabled={filteredCount === 0}
           >

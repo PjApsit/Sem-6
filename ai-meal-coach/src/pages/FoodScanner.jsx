@@ -13,6 +13,7 @@ import { getNutritionInfo, indianFoodDatabase, searchFoods } from '@/services/mo
 // import { getNutritionFromAI } from '@/services/mockApi';
 // import { getNutritionFromAI } from '@/services/nutritionApi';
 import { searchUSDAFoods } from '@/services/usdaApi';
+import { foods } from '@/services/foods';
 
 const mealTypes = [
   { value: 'breakfast', label: 'Breakfast', icon: '🌅' },
@@ -27,7 +28,7 @@ const FoodScanner = () => {
   const { toast } = useToast();
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
-  
+
   const [step, setStep] = useState('capture');
   const [imagePreview, setImagePreview] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -66,8 +67,8 @@ const FoodScanner = () => {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -84,21 +85,21 @@ const FoodScanner = () => {
 
   const captureFromCamera = () => {
     if (!videoRef.current) return;
-    
+
     const canvas = document.createElement('canvas');
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx?.drawImage(videoRef.current, 0, 0);
-    
+
     const imageData = canvas.toDataURL('image/jpeg');
     setImagePreview(imageData);
-    
+
     // Stop camera
     const stream = videoRef.current.srcObject;
     stream?.getTracks().forEach(track => track.stop());
     setIsCameraActive(false);
-    
+
     // Process as file
     canvas.toBlob((blob) => {
       if (blob) {
@@ -110,12 +111,12 @@ const FoodScanner = () => {
 
   // const processImage = async (file) => {
   //   setStep('analyzing');
-    
+
   //   try {
   //     // Call mock ML API
   //     const result = await recognizeFood(file);
   //     setRecognitionResult(result);
-      
+
   //     // Fetch nutrition info
   //     const nutritionInfo = await getNutritionInfo(result.foodName);
   //     if (nutritionInfo) {
@@ -124,7 +125,7 @@ const FoodScanner = () => {
   //       // Fallback to first item if not found
   //       setSelectedFood(indianFoodDatabase[0]);
   //     }
-      
+
   //     setStep('result');
   //   } catch (error) {
   //     toast({
@@ -136,7 +137,7 @@ const FoodScanner = () => {
   //   }
   // };
 
-    const processImage = async (file) => {
+  const processImage = async (file) => {
     setStep('analyzing');
 
     try {
@@ -145,21 +146,41 @@ const FoodScanner = () => {
       setRecognitionResult(result);
 
       let nutritionData = null;
+      const foodNameLower = result.foodName.toLowerCase();
 
-      try {
-        // 2️⃣ Try nutrition fetch
-        const usdaResults = await searchUSDAFoods(result.foodName);
+      // 2️⃣ Try Local Database first
+      const localFood = foods.find(f => f.name.toLowerCase() === foodNameLower);
 
-        if (usdaResults.length > 0) {
-          nutritionData = usdaResults[0];
-        }else{
-          console.log("Nutrition fetch failed");
-        }
-      } catch (nutritionError) {
-        console.log("Nutrition fetch failed, using fallback");
+      if (localFood) {
+        console.log("Found in local database:", localFood.name);
+        nutritionData = {
+          name: localFood.name,
+          servingSize: "1 serving",
+          category: localFood.category || "General",
+          nutrition: {
+            calories: localFood.calories || 0,
+            protein: localFood.protein || 0,
+            carbohydrates: localFood.carbs || 0,
+            fat: localFood.fat || 0,
+            fiber: localFood.fiber || 0,
+            sugar: localFood.sugar || 0
+          }
+        };
       }
 
-      // 3️⃣ If nutrition not found → create fallback object
+      // 3️⃣ If not found local, try USDA fetch
+      if (!nutritionData) {
+        try {
+          const usdaResults = await searchUSDAFoods(result.foodName);
+          if (usdaResults.length > 0) {
+            nutritionData = usdaResults[0];
+          }
+        } catch (nutritionError) {
+          console.log("USDA fetch failed, using zero defaults");
+        }
+      }
+
+      // 4️⃣ If still not found → create zero default object
       if (!nutritionData) {
         nutritionData = {
           name: result.foodName,
@@ -171,6 +192,7 @@ const FoodScanner = () => {
             carbohydrates: 0,
             fat: 0,
             fiber: 0,
+            sugar: 0
           },
         };
       }
@@ -178,24 +200,42 @@ const FoodScanner = () => {
       setSelectedFood(nutritionData);
       setStep('result');
 
-      } catch (error) {
-        // Only recognition error should reach here
-        toast({
-          title: 'Recognition Failed',
-          description: 'Could not identify the food from image.',
-          variant: 'destructive',
-        });
-
-        setStep('capture');
-      }
-    };
+    } catch (error) {
+      toast({
+        title: 'Recognition Failed',
+        description: 'Could not identify the food from image.',
+        variant: 'destructive',
+      });
+      setStep('capture');
+    }
+  };
 
 
   const handleSearch = async (query) => {
     setSearchQuery(query);
     if (query.length >= 2) {
-      const results = await searchUSDAFoods(query);
-      setSearchResults(results);
+      const queryLower = query.toLowerCase();
+      // Search local first
+      const localResults = foods
+        .filter(f => f.name.toLowerCase().includes(queryLower))
+        .map(f => ({
+          name: f.name,
+          servingSize: "1 serving",
+          category: f.category || "General",
+          nutrition: {
+            calories: f.calories || 0,
+            protein: f.protein || 0,
+            carbohydrates: f.carbs || 0,
+            fat: f.fat || 0,
+            fiber: f.fiber || 0,
+            sugar: f.sugar || 0
+          }
+        }));
+
+      const usdaResults = await searchUSDAFoods(query);
+
+      // Combine results, prioritizing local
+      setSearchResults([...localResults, ...usdaResults]);
     } else {
       setSearchResults([]);
     }
@@ -212,16 +252,16 @@ const FoodScanner = () => {
     console.log('=== CONFIRMING MEAL ===');
     console.log('selectedFood:', selectedFood);
     console.log('user:', user);
-    
+
     if (!selectedFood || !user) {
       console.error('❌ EARLY RETURN: selectedFood or user is null/undefined');
       return;
     }
-    
+
     console.log('selectedFood.name:', selectedFood.name);
     console.log('selectedFood.nutrition:', selectedFood.nutrition);
     console.log('user.id:', user.id);
-    
+
     // Ensure nutrition has all required properties with defaults
     const nutrition = selectedFood.nutrition || {};
     const defaultNutrition = {
@@ -232,7 +272,7 @@ const FoodScanner = () => {
       fiber: nutrition.fiber || 0,
       sugar: nutrition.sugar || 0,
     };
-    
+
     const meal = {
       id: `meal_${Date.now()}`,
       userId: user.id,
@@ -242,18 +282,18 @@ const FoodScanner = () => {
       timestamp: new Date().toISOString(),
       nutrition: defaultNutrition,
     };
-    
+
     console.log('📦 FINAL MEAL OBJECT:', JSON.stringify(meal, null, 2));
     console.log('Meal object is null?', meal === null);
     console.log('Meal object is undefined?', meal === undefined);
-    
+
     addMeal(meal);
-    
+
     toast({
       title: 'Meal Logged! 🎉',
       description: `${selectedFood.name} added to your ${mealType}.`,
     });
-    
+
     navigate('/dashboard');
   };
 
@@ -335,17 +375,50 @@ const FoodScanner = () => {
       return;
     }
 
-    // Search for first valid food and show result
+    const firstFood = validFoods[0].value.toLowerCase();
+
+    // Check local first
+    const localMatch = foods.find(f => f.name.toLowerCase() === firstFood);
+
+    if (localMatch) {
+      setSelectedFood({
+        name: localMatch.name,
+        servingSize: "1 serving",
+        category: localMatch.category || "General",
+        nutrition: {
+          calories: localMatch.calories || 0,
+          protein: localMatch.protein || 0,
+          carbohydrates: localMatch.carbs || 0,
+          fat: localMatch.fat || 0,
+          fiber: localMatch.fiber || 0,
+          sugar: localMatch.sugar || 0
+        }
+      });
+      setStep('result');
+      return;
+    }
+
+    // Search for first valid food in USDA and show result
     const results = await searchUSDAFoods(validFoods[0].value);
     if (results.length > 0) {
       setSelectedFood(results[0]);
       setStep('result');
     } else {
-      toast({
-        title: 'Food not found',
-        description: 'Could not find nutrition info. Try a different food name.',
-        variant: 'destructive',
+      // Create empty default if not found anywhere
+      setSelectedFood({
+        name: validFoods[0].value,
+        servingSize: "1 serving",
+        category: "Unknown",
+        nutrition: {
+          calories: 0,
+          protein: 0,
+          carbohydrates: 0,
+          fat: 0,
+          fiber: 0,
+          sugar: 0
+        },
       });
+      setStep('result');
     }
   };
 
@@ -358,11 +431,11 @@ const FoodScanner = () => {
             {step === 'capture' ? 'Food Analytics' : step === 'analyzing' ? 'Analyzing...' : 'Food Detected'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {step === 'capture' 
+            {step === 'capture'
               ? 'Upload a photo or add foods manually'
               : step === 'analyzing'
-              ? 'Our AI is identifying your meal'
-              : 'Review and confirm your meal'
+                ? 'Our AI is identifying your meal'
+                : 'Review and confirm your meal'
             }
           </p>
         </div>
@@ -409,15 +482,15 @@ const FoodScanner = () => {
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                   className={cn(
                     "aspect-[4/3] rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-4",
-                    isDragOver 
-                      ? "border-primary bg-primary/10" 
+                    isDragOver
+                      ? "border-primary bg-primary/10"
                       : "border-border hover:border-primary/50 hover:bg-muted/30"
                   )}
                 >
@@ -590,8 +663,8 @@ const FoodScanner = () => {
             </div>
 
             {/* Nutrition Summary Cards */}
-            <NutritionSummaryCards 
-              nutrition={selectedFood.nutrition} 
+            <NutritionSummaryCards
+              nutrition={selectedFood.nutrition}
               quantity={quantity}
             />
 
