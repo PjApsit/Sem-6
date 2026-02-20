@@ -11,10 +11,10 @@
  * 4. Implement JWT token management in headers
  */
 
-import { 
-  UserProfile, 
-  FoodItem, 
-  FoodRecognitionResult, 
+import {
+  UserProfile,
+  FoodItem,
+  FoodRecognitionResult,
   NutritionInfo,
   DailyGoals,
   Recommendation,
@@ -183,7 +183,7 @@ export const indianFoodDatabase: FoodItem[] = [
 
 export const mockLogin = async (email: string, password: string): Promise<{ token: string; user: UserProfile }> => {
   await delay(800);
-  
+
   // TIP: Replace with actual API call:
   // const response = await fetch(`${API_URL}/auth/login`, {
   //   method: 'POST',
@@ -191,7 +191,7 @@ export const mockLogin = async (email: string, password: string): Promise<{ toke
   //   body: JSON.stringify({ email, password })
   // });
   // return response.json();
-  
+
   // Mock response
   const mockUser: UserProfile = {
     id: 'user_1',
@@ -206,13 +206,13 @@ export const mockLogin = async (email: string, password: string): Promise<{ toke
     dietPreference: 'vegetarian',
     allergies: []
   };
-  
+
   return { token: 'mock_jwt_token_xyz', user: mockUser };
 };
 
 export const mockRegister = async (userData: Partial<UserProfile> & { password: string }): Promise<{ token: string; user: UserProfile }> => {
   await delay(1000);
-  
+
   // TIP: POST /api/auth/register
   const newUser: UserProfile = {
     id: `user_${Date.now()}`,
@@ -227,7 +227,7 @@ export const mockRegister = async (userData: Partial<UserProfile> & { password: 
     dietPreference: userData.dietPreference || 'vegetarian',
     allergies: userData.allergies || []
   };
-  
+
   return { token: 'mock_jwt_token_new', user: newUser };
 };
 
@@ -240,7 +240,7 @@ export const mockRegister = async (userData: Partial<UserProfile> & { password: 
 
 export const recognizeFood = async (imageFile: File): Promise<FoodRecognitionResult> => {
   await delay(1500); // Simulate ML processing time
-  
+
   // TIP: Replace with actual ML API call:
   // const formData = new FormData();
   // formData.append('image', imageFile);
@@ -250,11 +250,11 @@ export const recognizeFood = async (imageFile: File): Promise<FoodRecognitionRes
   //   body: formData
   // });
   // return response.json();
-  
+
   // Mock: Return random food from database
   const randomIndex = Math.floor(Math.random() * indianFoodDatabase.length);
   const recognizedFood = indianFoodDatabase[randomIndex];
-  
+
   return {
     foodName: recognizedFood.name,
     confidence: 0.85 + Math.random() * 0.12, // 85-97% confidence
@@ -272,23 +272,23 @@ export const recognizeFood = async (imageFile: File): Promise<FoodRecognitionRes
 
 export const getNutritionInfo = async (foodName: string): Promise<FoodItem | null> => {
   await delay(300);
-  
+
   // TIP: Replace with database query
   const food = indianFoodDatabase.find(
     f => f.name.toLowerCase().includes(foodName.toLowerCase())
   );
-  
+
   return food || null;
 };
 
 export const searchFoods = async (query: string): Promise<FoodItem[]> => {
   await delay(200);
-  
+
   if (!query.trim()) return [];
-  
+
   return indianFoodDatabase.filter(
     f => f.name.toLowerCase().includes(query.toLowerCase()) ||
-         f.category.toLowerCase().includes(query.toLowerCase())
+      f.category.toLowerCase().includes(query.toLowerCase())
   );
 };
 
@@ -300,13 +300,13 @@ export const searchFoods = async (query: string): Promise<FoodItem[]> => {
 export const calculateDailyGoals = (profile: UserProfile): DailyGoals => {
   // Mifflin-St Jeor BMR Formula
   let bmr: number;
-  
+
   if (profile.gender === 'male') {
     bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
   } else {
     bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age - 161;
   }
-  
+
   // Activity multiplier
   const activityMultipliers = {
     sedentary: 1.2,
@@ -315,9 +315,9 @@ export const calculateDailyGoals = (profile: UserProfile): DailyGoals => {
     active: 1.725,
     very_active: 1.9
   };
-  
+
   let tdee = bmr * activityMultipliers[profile.activityLevel];
-  
+
   // Adjust for goal
   switch (profile.goal) {
     case 'weight_loss':
@@ -327,7 +327,7 @@ export const calculateDailyGoals = (profile: UserProfile): DailyGoals => {
       tdee += 300; // 300 kcal surplus
       break;
   }
-  
+
   // Macro distribution (can be customized)
   // Protein: 25-30%, Carbs: 45-50%, Fat: 25-30%
   const calories = Math.round(tdee);
@@ -335,7 +335,7 @@ export const calculateDailyGoals = (profile: UserProfile): DailyGoals => {
   const carbohydrates = Math.round((calories * 0.47) / 4); // 4 cal per gram
   const fat = Math.round((calories * 0.25) / 9); // 9 cal per gram
   const fiber = 30; // Standard recommendation
-  
+
   return { calories, protein, carbohydrates, fat, fiber };
 };
 
@@ -350,62 +350,86 @@ export const generateRecommendations = (
   profile: UserProfile
 ): Recommendation[] => {
   const recommendations: Recommendation[] = [];
-  
+
   const proteinPercent = (consumed.protein / goals.protein) * 100;
   const carbsPercent = (consumed.carbohydrates / goals.carbohydrates) * 100;
   const fatPercent = (consumed.fat / goals.fat) * 100;
-  const caloriesPercent = (consumed.calories / goals.calories) * 100;
-  
+
+  // Helper to filter foods based on preferences and allergies
+  const filterFoods = (foods: FoodItem[]) => {
+    return foods.filter(f => {
+      // 1. Dietary Preference
+      if (profile.dietPreference === 'vegetarian' && f.category === 'Non-Veg') return false;
+      if (profile.dietPreference === 'vegan' && (f.category === 'Non-Veg' || f.name.includes('Paneer') || f.name.includes('Lassi') || f.name.includes('Curd'))) return false;
+
+      // 2. Allergies (Basic string matching)
+      if (profile.allergies && profile.allergies.length > 0) {
+        const foodNameLower = f.name.toLowerCase();
+        for (const allergy of profile.allergies) {
+          const allergyLower = allergy.toLowerCase();
+          if (foodNameLower.includes(allergyLower)) return false;
+          // Add specific exclusion logic if needed
+          if (allergyLower === 'dairy' && (f.name.includes('Paneer') || f.name.includes('Lassi') || f.name.includes('Butter'))) return false;
+          if (allergyLower === 'nut' && (f.name.includes('Peanut') || f.name.includes('Almond'))) return false;
+        }
+      }
+      return true;
+    });
+  };
+
   // Protein recommendations
   if (proteinPercent < 50) {
-    const highProteinFoods = indianFoodDatabase
-      .filter(f => f.nutrition.protein >= 10)
-      .filter(f => profile.dietPreference === 'vegetarian' ? f.category !== 'Non-Veg' : true);
-    
+    const highProteinFoods = filterFoods(indianFoodDatabase.filter(f => f.nutrition.protein >= 8));
+    // Shuffle and pick 3
+    const suggestions = highProteinFoods.sort(() => 0.5 - Math.random()).slice(0, 3);
+
     recommendations.push({
       type: 'protein',
-      message: 'Your protein intake is low today. Consider adding high-protein foods to your next meal.',
-      suggestedFoods: highProteinFoods.slice(0, 3),
+      message: `Your protein is low (${Math.round(proteinPercent)}%). Try these ${profile.dietPreference} friendly boost options:`,
+      suggestedFoods: suggestions,
       priority: 'high'
     });
   }
-  
+
   // Carbs warning
-  if (carbsPercent > 90 && caloriesPercent < 80) {
+  if (carbsPercent > 90) {
+    const lowCarbFoods = filterFoods(indianFoodDatabase.filter(f => f.nutrition.carbohydrates < 20));
+    const suggestions = lowCarbFoods.sort(() => 0.5 - Math.random()).slice(0, 3);
+
     recommendations.push({
       type: 'carbs',
-      message: 'You\'re reaching your carb limit. Try protein-rich or fiber-rich foods for remaining meals.',
+      message: 'Carb limit reached. Opt for fiber-rich or low-carb foods for the rest of the day.',
+      suggestedFoods: suggestions,
       priority: 'medium'
     });
   }
-  
+
   // Fat warning
   if (fatPercent > 85) {
+    const lowFatFoods = filterFoods(indianFoodDatabase.filter(f => f.nutrition.fat < 5));
+    const suggestions = lowFatFoods.sort(() => 0.5 - Math.random()).slice(0, 3);
+
     recommendations.push({
       type: 'fat',
-      message: 'Fat intake is close to your daily limit. Choose leaner options for upcoming meals.',
-      priority: 'high'
-    });
-  }
-  
-  // Calorie guidance for weight loss
-  if (profile.goal === 'weight_loss' && caloriesPercent > 95) {
-    recommendations.push({
-      type: 'calories',
-      message: 'You\'re almost at your calorie target. If you need a snack, try fruits or vegetables.',
+      message: 'Fat intake is high. Keep it light with these low-fat options.',
+      suggestedFoods: suggestions,
       priority: 'medium'
     });
   }
-  
-  // General positive feedback
+
+  // Balanced/Maintenance
   if (recommendations.length === 0) {
+    const balancedFoods = filterFoods(indianFoodDatabase.filter(f => f.nutrition.protein > 5 && f.nutrition.fat < 10));
+    const suggestions = balancedFoods.sort(() => 0.5 - Math.random()).slice(0, 3);
+
     recommendations.push({
       type: 'general',
-      message: 'Great job! You\'re on track with your nutrition goals today. Keep it up! 🌟',
+      message: 'You are on track! Here are some balanced meal ideas to keep you going:',
+      suggestedFoods: suggestions,
       priority: 'low'
     });
   }
-  
+
   return recommendations;
 };
 
@@ -421,7 +445,7 @@ export const sendChatMessage = async (
   conversationHistory: ChatMessage[]
 ): Promise<string> => {
   await delay(1200);
-  
+
   // TIP: Replace with actual AI API call:
   // const response = await fetch(`${API_URL}/chat/message`, {
   //   method: 'POST',
@@ -436,33 +460,33 @@ export const sendChatMessage = async (
   //   })
   // });
   // return response.json();
-  
+
   // Mock responses based on keywords
   const lowerMessage = message.toLowerCase();
-  
+
   if (lowerMessage.includes('dinner') || lowerMessage.includes('suggest')) {
     if (profile.dietPreference === 'vegetarian') {
       return "For a healthy vegetarian dinner, I recommend:\n\n🥗 **Option 1:** Dal Tadka with 2 Rotis and a side of Palak Paneer\n• Calories: ~470 kcal\n• High in protein and fiber\n\n🍛 **Option 2:** Chole with steamed rice and cucumber raita\n• Calories: ~450 kcal\n• Great source of plant protein\n\nBoth options align well with your weight loss goal!";
     }
     return "For dinner tonight, I suggest:\n\n🍗 **Option 1:** Tandoori Chicken (2 pieces) with Roti and Dal\n• Calories: ~460 kcal\n• High protein, moderate carbs\n\n🥘 **Option 2:** Chicken Curry with brown rice\n• Calories: ~480 kcal\n• Balanced macros\n\nThese fit well within your remaining calorie budget!";
   }
-  
+
   if (lowerMessage.includes('protein') || lowerMessage.includes('high protein')) {
-    const proteinFoods = profile.dietPreference === 'vegetarian' 
+    const proteinFoods = profile.dietPreference === 'vegetarian'
       ? "Paneer (25g/100g), Dal (9g/bowl), Chole (12g/bowl), Eggs if eggetarian (6g/egg)"
       : "Chicken (25g/100g), Eggs (6g/egg), Paneer (25g/100g), Fish (20g/100g)";
-    
+
     return `Here are high-protein Indian foods for you:\n\n💪 **Top Picks:**\n${proteinFoods}\n\n**Tip:** Combining dal with rice creates a complete protein with all essential amino acids!`;
   }
-  
+
   if (lowerMessage.includes('weight loss') || lowerMessage.includes('lose weight')) {
     return "Here are my top weight loss tips tailored for you:\n\n1️⃣ **Start your day right:** Poha or Upma (180-195 kcal) with vegetables\n\n2️⃣ **Lunch:** Fill half your plate with veggies, quarter with dal/protein, quarter with roti/rice\n\n3️⃣ **Smart snacking:** Sprouts chaat, roasted makhana, or fruit\n\n4️⃣ **Dinner:** Finish eating 2-3 hours before bed\n\n5️⃣ **Hydration:** Drink buttermilk or coconut water instead of packaged juices\n\nYour current deficit of 500 kcal/day should help you lose ~0.5kg per week safely! 📉";
   }
-  
+
   if (lowerMessage.includes('breakfast')) {
     return "Great breakfast options for your goals:\n\n🌅 **Light & Nutritious:**\n• 2 Idlis with sambar (160 kcal)\n• Poha with peanuts (180 kcal)\n\n🍳 **Protein-Packed:**\n• Egg Bhurji with 1 Roti (340 kcal)\n• Moong Dal Chilla (150 kcal)\n\n🥣 **Filling:**\n• Upma with vegetables (195 kcal)\n• Oats with milk and fruits (220 kcal)\n\nI recommend starting your day with protein to stay fuller longer!";
   }
-  
+
   // Default response
   return "I'm your AI nutrition assistant! I can help you with:\n\n• 🍽️ Meal suggestions based on your preferences\n• 📊 Nutrition advice for your goals\n• 🥗 High-protein or low-carb recommendations\n• ⚖️ Weight management tips\n\nWhat would you like to know about your diet today?";
 };
@@ -478,7 +502,7 @@ export const logMeal = async (
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'
 ): Promise<{ success: boolean; mealId: string }> => {
   await delay(300);
-  
+
   // TIP: Replace with database insert
   return {
     success: true,

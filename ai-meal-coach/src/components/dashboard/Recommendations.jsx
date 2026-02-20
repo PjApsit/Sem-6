@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useUser } from '@/context/UserContext';
 import { generateRecommendations } from '@/services/mockApi';
+import { generateRecommendations } from '@/services/mockApi';
 import { Lightbulb, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { foods } from '@/services/foods';
@@ -74,6 +75,7 @@ const getSmartSuggestions = (type, user) => {
 export const Recommendations = () => {
   const { user, dailyGoals, getTodaysNutrition } = useUser();
 
+
   const recommendations = useMemo(() => {
     if (!user || !dailyGoals) return [];
     const consumed = getTodaysNutrition();
@@ -85,9 +87,7 @@ export const Recommendations = () => {
     }));
   }, [user, dailyGoals, getTodaysNutrition]);
 
-  const displayRecommendations = recommendations;
-
-  if (displayRecommendations.length === 0) return null;
+  if (recommendations.length === 0) return null;
 
   return (
     <div className="space-y-3">
@@ -96,7 +96,7 @@ export const Recommendations = () => {
         Smart Recommendations
       </h3>
       <div className="space-y-2">
-        {displayRecommendations.map((rec, index) => {
+        {recommendations.map((rec, index) => {
           const config = priorityConfig[rec.priority];
           const Icon = config.icon;
           return (

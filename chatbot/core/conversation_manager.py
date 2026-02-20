@@ -9,6 +9,8 @@ import re
 import sys
 from typing import Dict, Tuple, Optional, Any
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 # Add core and root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,6 +88,16 @@ class ConversationManager:
         self.nl_generator = NLGenerator()
         self.safety_validator = SafetyValidator()
 
+        # Initialize Gemini
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-001')
+        else:
+            print("WARNING: GEMINI_API_KEY not found in environment variables.")
+            self.gemini_model = None
+
         # Initialize Models
         print("[ConversationManager] Loading models...")
         self.roadmap_generator = RoadmapGenerator(
@@ -159,6 +171,38 @@ class ConversationManager:
             return float(match.group(1))
         # Word numbers like "seventy" will return None -> triggers helpful error
         return None
+
+    def _query_gemini(self, message: str, profile: Dict) -> str:
+        """Fallback to Gemini API for general queries or unmatched intents."""
+        if not self.gemini_model:
+            return "I'm not sure what you mean, and I can't connect to my brain right now. Let's stick to the plan!"
+
+        try:
+            # Construct context from profile
+            context_parts = ["You are a helpful, encouraging AI diet and fitness coach."]
+            
+            if profile.get("fitness_goal"):
+                context_parts.append(f"The user's goal is to {profile['fitness_goal']}.")
+            
+            restrictions = profile.get("dietary_restrictions")
+            if restrictions:
+                 context_parts.append(f"They have the following dietary requirements: {restrictions}.")
+
+            if profile.get("age"):
+                 context_parts.append(f"They are {profile['age']} years old.")
+            
+            context_parts.append(f"User message: {message}")
+            context_parts.append("Provide a helpful, concise response relevant to fitness/diet. If the user asks something completely unrelated, politely bring it back to health. Do not ask for personal info if you don't need it.")
+
+            prompt = "\n".join(context_parts)
+            
+            response = self.gemini_model.generate_content(prompt)
+            if response and response.text:
+                return response.text
+            return "I'm having trouble thinking right now. Let's get back to your fitness plan!"
+        except Exception as e:
+            print(f"Gemini API Error: {e}")
+            return "I'm having trouble thinking right now. Let's get back to your fitness plan!"
 
     def adapt_model2_to_model3(self, model2_output: Dict, user_profile: Dict) -> Dict:
         """
@@ -392,7 +436,8 @@ class ConversationManager:
             return "I've designed this plan for you. Type 'reset' to start over or let me know if you need adjustments!"
 
         else:
-            return "I'm not sure what you mean. Let's stick to the plan!"
+            # Fallback to Gemini
+            return self._query_gemini(message, profile)
 
     def _match_keyword(self, text: str, mapping: Dict) -> Optional[str]:
         text = text.lower()
