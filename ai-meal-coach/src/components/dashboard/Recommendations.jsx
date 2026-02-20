@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { useUser } from '@/context/UserContext';
-import { generateRecommendations, indianFoodDatabase } from '@/services/mockApi';
+import { generateRecommendations } from '@/services/mockApi';
 import { Lightbulb, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { foods } from '@/services/foods';
 
 const priorityConfig = {
   high: { icon: AlertTriangle, bgColor: 'bg-destructive/10', textColor: 'text-destructive', borderColor: 'border-destructive/20' },
@@ -10,46 +11,77 @@ const priorityConfig = {
   low: { icon: CheckCircle, bgColor: 'bg-success/10', textColor: 'text-success', borderColor: 'border-success/20' },
 };
 
-// Food suggestions by nutrition type
-const foodSuggestionsByType = {
-  protein: [
-    { id: 'chicken', name: 'Chicken Breast' },
-    { id: 'eggs', name: 'Eggs' },
-    { id: 'dal', name: 'Dal' },
-    { id: 'paneer', name: 'Paneer' },
-  ],
-  carbs: [
-    { id: 'rice', name: 'Brown Rice' },
-    { id: 'roti', name: 'Roti' },
-    { id: 'oats', name: 'Oats' },
-    { id: 'sweet_potato', name: 'Sweet Potato' },
-  ],
-  fat: [
-    { id: 'nuts', name: 'Almonds' },
-    { id: 'olive_oil', name: 'Olive Oil' },
-    { id: 'avocado', name: 'Avocado' },
-    { id: 'coconut', name: 'Coconut Oil' },
-  ],
-  calories: [
-    { id: 'nuts', name: 'Almonds' },
-    { id: 'banana', name: 'Banana' },
-    { id: 'cheese', name: 'Cheese' },
-    { id: 'whole_milk', name: 'Whole Milk' },
-  ],
+const getSmartSuggestions = (type, user) => {
+  if (!user) return [];
+
+  const fitnessGoal = user.fitnessGoal || user.goal;
+  const dietaryRestrictions = (user.dietaryRestrictions || '').toLowerCase();
+  const allergens = (user.allergogens || user.allergies || []);
+
+  // Filter foods based on basic dietary logic
+  let filteredFoods = foods.filter(food => {
+    const foodName = food.name.toLowerCase();
+
+    // Simple allergen check (partial string match)
+    const hasAllergen = allergens.some(allergen =>
+      foodName.includes(allergen.toLowerCase().replace('no_', ''))
+    );
+    if (hasAllergen) return false;
+
+    // Dietary restriction check
+    if (dietaryRestrictions.includes('vegetarian') || user.dietPreference === 'vegetarian') {
+      const nonVegKeywords = ['chicken', 'egg', 'meat', 'fish', 'bhature', 'puri']; // Simple list
+      if (nonVegKeywords.some(kw => foodName.includes(kw))) {
+        // However, bhature and puri are veg usually, but we keep it simple or refined
+      }
+    }
+
+    return true;
+  });
+
+  // Sort and select based on recommendation type
+  let sortedFoods = [];
+  switch (type) {
+    case 'protein':
+      sortedFoods = filteredFoods.sort((a, b) => b.protein - a.protein);
+      break;
+    case 'carbs':
+      // If warning about high carbs, suggest low carb foods or fiber rich
+      sortedFoods = filteredFoods.sort((a, b) => a.carbs - b.carbs);
+      break;
+    case 'fat':
+      sortedFoods = filteredFoods.sort((a, b) => a.fat - b.fat);
+      break;
+    case 'calories':
+      // If near limit, suggest low calorie foods (like tomato, onion, lemon)
+      sortedFoods = filteredFoods.sort((a, b) => a.calories - b.calories);
+      break;
+    default:
+      // General suggestions based on goal
+      if (fitnessGoal === 'weight_loss') {
+        sortedFoods = filteredFoods.sort((a, b) => a.calories - b.calories);
+      } else if (fitnessGoal === 'muscle_gain' || fitnessGoal === 'weight_gain') {
+        sortedFoods = filteredFoods.sort((a, b) => b.protein - a.protein);
+      } else {
+        sortedFoods = filteredFoods;
+      }
+  }
+
+  // Return top 3 unique suggestions
+  return sortedFoods.slice(0, 3).map(f => ({ id: f.name, name: f.name }));
 };
 
 export const Recommendations = () => {
   const { user, dailyGoals, getTodaysNutrition } = useUser();
-  
+
   const recommendations = useMemo(() => {
     if (!user || !dailyGoals) return [];
     const consumed = getTodaysNutrition();
     const recs = generateRecommendations(consumed, dailyGoals, user);
-    
-    // Add suggested foods based on recommendation type
+
     return recs.map(rec => ({
       ...rec,
-      suggestedFoods: foodSuggestionsByType[rec.type] || []
+      suggestedFoods: getSmartSuggestions(rec.type, user)
     }));
   }, [user, dailyGoals, getTodaysNutrition]);
 

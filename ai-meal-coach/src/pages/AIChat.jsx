@@ -3,7 +3,7 @@ import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/context/UserContext';
 import { sendChatMessage } from '@/services/chatApi';
-import { askGemini } from '@/services/aiService';
+import { askGemini, askGroq } from '@/services/aiService';
 import { cn } from '@/lib/utils';
 
 const quickPrompts = [
@@ -12,6 +12,52 @@ const quickPrompts = [
   "Weight loss tips",
   "Healthy breakfast options",
 ];
+
+const formatMessage = (content) => {
+  if (typeof content !== 'string') return content;
+
+  // First split into lines to handle bullets and line breaks
+  const lines = content.split('\n');
+
+  return lines.map((line, lineIdx) => {
+    // Check for bullet points at the start of the line
+    const trimmedLine = line.trim();
+    const isBullet = trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ');
+    const displayContent = isBullet ? trimmedLine.substring(2) : line;
+
+    // Split by bold segments
+    const parts = displayContent.split(/(\*\*.*?\*\*)/g);
+    const renderedLine = parts.map((part, i) => {
+      if (typeof part === 'string' && part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={`${lineIdx}-${i}`} className="font-bold text-foreground mx-0.5">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+
+    // Handle empty lines as spacers
+    if (trimmedLine === '' && lineIdx !== lines.length - 1) {
+      return <div key={lineIdx} className="h-3" />;
+    }
+
+    return (
+      <div key={lineIdx} className={cn(
+        "flex gap-2 my-0.5",
+        isBullet ? "ml-2 items-start" : "items-center"
+      )}>
+        {isBullet && (
+          <span className="text-primary mt-1 flex-shrink-0">•</span>
+        )}
+        <span className="flex-1 leading-relaxed">
+          {renderedLine}
+        </span>
+      </div>
+    );
+  });
+};
 
 const AIChat = () => {
   const { user, getTodaysNutrition, dailyGoals } = useUser();
@@ -70,15 +116,21 @@ const AIChat = () => {
         typeof assistantContent === 'string' && assistantContent.includes(trigger)
       );
 
-      // Trigger Gemini if backend is unsure
+      // Trigger GROQ if backend is unsure
       if (isUnsure) {
-        console.log('🤖 Backend unsure, falling back to Gemini...');
-        const geminiResponse = await askGemini(text, {
+        console.log('🤖 Backend unsure, falling back to GROQ...');
+        const groqResponse = await askGroq(text, {
           user,
           todaysNutrition,
           dailyGoals
         });
-        assistantContent = geminiResponse;
+
+        if (groqResponse) {
+          assistantContent = groqResponse;
+        } else {
+          // If GROQ fails, use final fallback
+          assistantContent = "Can not understand plz enter your query again";
+        }
       }
 
       const assistantMessage = {
@@ -158,9 +210,9 @@ const AIChat = () => {
                     : 'glass-card rounded-tl-sm'
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                  {message.content}
-                </p>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                  {formatMessage(message.content)}
+                </div>
                 <p
                   className={cn(
                     'text-[10px] mt-1',

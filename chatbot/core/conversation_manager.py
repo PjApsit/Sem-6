@@ -249,7 +249,7 @@ class ConversationManager:
         msg_clean = message.strip().lower()
 
         # ✅ UNIVERSAL RESET HANDLER
-        if msg_clean in ["reset", "restart", "start over", "new"]:
+        if msg_clean in ["reset", "restart", "start over", "new", "new plan", "quit", "stop"]:
             # Create fresh conversation state with clean profile
             conv["current_state"] = self.STATE_GREETING
             conv["profile"] = {
@@ -264,10 +264,12 @@ class ConversationManager:
                 "allergens": [],
             }
             conv["message_count"] = 0
+            if msg_clean in ["quit", "stop"]:
+                return "Conversation stopped and data cleared. How else can I help you today?"
             return "Starting fresh! What's your new goal? (lose weight / gain muscle / maintain)"
 
         # ✅ DIRECT PLAN REQUEST HANDLER
-        if "diet plan" in msg_clean or "show plan" in msg_clean:
+        if "diet plan" in msg_clean or "show plan" in msg_clean or msg_clean == "diet":
             # Check if profile is sufficient
             required = ["weight_kg", "height_cm", "age", "activity_level", "fitness_goal"]
             if all(profile.get(f) is not None for f in required):
