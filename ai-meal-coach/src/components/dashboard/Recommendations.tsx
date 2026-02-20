@@ -27,7 +27,7 @@ const priorityConfig = {
 
 export const Recommendations: React.FC = () => {
   const { user, dailyGoals, getTodaysNutrition } = useUser();
-  
+
   const recommendations = useMemo(() => {
     if (!user || !dailyGoals) return [];
     const consumed = getTodaysNutrition();
@@ -42,12 +42,12 @@ export const Recommendations: React.FC = () => {
         <TrendingUp className="w-4 h-4 text-primary" />
         Smart Recommendations
       </h3>
-      
+
       <div className="space-y-2">
         {recommendations.map((rec, index) => {
           const config = priorityConfig[rec.priority];
           const Icon = config.icon;
-          
+
           return (
             <div
               key={index}
@@ -65,7 +65,7 @@ export const Recommendations: React.FC = () => {
                   <p className="text-sm text-foreground leading-relaxed">
                     {rec.message}
                   </p>
-                  
+
                   {rec.suggestedFoods && rec.suggestedFoods.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {rec.suggestedFoods.map((food) => (

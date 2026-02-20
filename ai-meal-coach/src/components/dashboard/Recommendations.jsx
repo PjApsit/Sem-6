@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useUser } from '@/context/UserContext';
-import { generateRecommendations, indianFoodDatabase } from '@/services/mockApi';
+import { generateRecommendations } from '@/services/mockApi';
 import { Lightbulb, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,52 +10,16 @@ const priorityConfig = {
   low: { icon: CheckCircle, bgColor: 'bg-success/10', textColor: 'text-success', borderColor: 'border-success/20' },
 };
 
-// Food suggestions by nutrition type
-const foodSuggestionsByType = {
-  protein: [
-    { id: 'chicken', name: 'Chicken Breast' },
-    { id: 'eggs', name: 'Eggs' },
-    { id: 'dal', name: 'Dal' },
-    { id: 'paneer', name: 'Paneer' },
-  ],
-  carbs: [
-    { id: 'rice', name: 'Brown Rice' },
-    { id: 'roti', name: 'Roti' },
-    { id: 'oats', name: 'Oats' },
-    { id: 'sweet_potato', name: 'Sweet Potato' },
-  ],
-  fat: [
-    { id: 'nuts', name: 'Almonds' },
-    { id: 'olive_oil', name: 'Olive Oil' },
-    { id: 'avocado', name: 'Avocado' },
-    { id: 'coconut', name: 'Coconut Oil' },
-  ],
-  calories: [
-    { id: 'nuts', name: 'Almonds' },
-    { id: 'banana', name: 'Banana' },
-    { id: 'cheese', name: 'Cheese' },
-    { id: 'whole_milk', name: 'Whole Milk' },
-  ],
-};
-
 export const Recommendations = () => {
   const { user, dailyGoals, getTodaysNutrition } = useUser();
-  
+
   const recommendations = useMemo(() => {
     if (!user || !dailyGoals) return [];
     const consumed = getTodaysNutrition();
-    const recs = generateRecommendations(consumed, dailyGoals, user);
-    
-    // Add suggested foods based on recommendation type
-    return recs.map(rec => ({
-      ...rec,
-      suggestedFoods: foodSuggestionsByType[rec.type] || []
-    }));
+    return generateRecommendations(consumed, dailyGoals, user);
   }, [user, dailyGoals, getTodaysNutrition]);
 
-  const displayRecommendations = recommendations;
-
-  if (displayRecommendations.length === 0) return null;
+  if (recommendations.length === 0) return null;
 
   return (
     <div className="space-y-3">
@@ -64,7 +28,7 @@ export const Recommendations = () => {
         Smart Recommendations
       </h3>
       <div className="space-y-2">
-        {displayRecommendations.map((rec, index) => {
+        {recommendations.map((rec, index) => {
           const config = priorityConfig[rec.priority];
           const Icon = config.icon;
           return (
