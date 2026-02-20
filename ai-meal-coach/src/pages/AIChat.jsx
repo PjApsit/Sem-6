@@ -100,25 +100,34 @@ const AIChat = () => {
       // Get latest nutrition context
       const todaysNutrition = getTodaysNutrition();
 
-      // Call the real Flask API with profile syncing
-      const response = await sendChatMessage(text, user?.id || 'default_user', user);
+      // Try calling the real Flask API
+      let response;
+      try {
+        response = await sendChatMessage(text, user?.id || 'default_user', user);
+      } catch (backendError) {
+        console.warn('Backend connection failed, trying fallback:', backendError);
+        response = { response: "I'm not sure what you mean" }; // Trigger fallback
+      }
 
       let assistantContent = response.response || response;
 
-      // Check if backend is unsure - if so, fallback to Gemini
+      // Check if backend is unsure
       const fallbackTriggers = [
         "I'm not sure what you mean",
         "Stick to the plan",
-        "Type 'reset' to start over"
+        "Type 'reset' to start over",
+        "Failed to connect",
+        "Can not understand",
+        "Missing:",
       ];
 
       const isUnsure = fallbackTriggers.some(trigger =>
         typeof assistantContent === 'string' && assistantContent.includes(trigger)
       );
 
-      // Trigger GROQ if backend is unsure
+      // Trigger GROQ if backend is unsure or failed
       if (isUnsure) {
-        console.log('🤖 Backend unsure, falling back to GROQ...');
+        console.log('🤖 Backend unsure or down, falling back to GROQ...');
         const groqResponse = await askGroq(text, {
           user,
           todaysNutrition,
@@ -128,8 +137,8 @@ const AIChat = () => {
         if (groqResponse) {
           assistantContent = groqResponse;
         } else {
-          // If GROQ fails, use final fallback
-          assistantContent = "Can not understand plz enter your query again";
+          // If GROQ also fails, use final fallback
+          assistantContent = "We could not understatnd it  type your query again.";
         }
       }
 
@@ -146,7 +155,7 @@ const AIChat = () => {
       const errorMessage = {
         id: `error_${Date.now()}`,
         role: 'assistant',
-        content: "I'm sorry, I couldn't connect to the AI assistant. Please make sure the backend server is running on port 5000.",
+        content: "We could not understatnd it  type your query again.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);

@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { useUser } from '@/context/UserContext';
 import { generateRecommendations } from '@/services/mockApi';
-import { generateRecommendations } from '@/services/mockApi';
 import { Lightbulb, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { foods } from '@/services/foods';

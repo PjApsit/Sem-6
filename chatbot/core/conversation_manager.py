@@ -9,7 +9,7 @@ import re
 import sys
 from typing import Dict, Tuple, Optional, Any
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+# removed library: from dotenv import load_dotenv
 import google.generativeai as genai
 
 # Add core and root to path
@@ -24,7 +24,7 @@ from core.roadmap_generator import RoadmapGenerator
 from core.food_recommender import FoodRecommender
 
 # IntentClassifier is not strictly needed for this flow but good to have if we expand
-from core.intent_classifier import IntentClassifier
+# from core.intent_classifier import IntentClassifier
 
 
 class ConversationManager:
@@ -88,14 +88,37 @@ class ConversationManager:
         self.nl_generator = NLGenerator()
         self.safety_validator = SafetyValidator()
 
-        # Initialize Gemini
-        load_dotenv()
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Initialize Gemini using manual .env loading (avoids library dependencies)
+        api_key = None
+        
+        # Check multiple possible .env locations
+        search_paths = [
+            os.path.join(root_dir, ".env"), # chatbot/.env
+            os.path.join(os.path.dirname(root_dir), "ai-meal-coach", ".env"), # ai-meal-coach/.env
+        ]
+        
+        for path in search_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith('#'): continue
+                            if '=' in line:
+                                key, val = line.split('=', 1)
+                                key = key.strip()
+                                # Match both backend and frontend keys for convenience
+                                if key in ["GEMINI_API_KEY", "VITE_GEMINI_API_KEY"]:
+                                    api_key = val.strip().strip('"').strip("'")
+                                    break
+                    if api_key: break
+                except Exception: continue
+
         if api_key:
             genai.configure(api_key=api_key)
             self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-001')
         else:
-            print("WARNING: GEMINI_API_KEY not found in environment variables.")
+            print("WARNING: GEMINI_API_KEY not found in storage. Fallback deactivated.")
             self.gemini_model = None
 
         # Initialize Models
@@ -261,20 +284,30 @@ class ConversationManager:
             "weight": "weight_kg",
             "height": "height_cm",
             "activityLevel": "activity_level",
+            "activity_level": "activity_level",
             "fitnessGoal": "fitness_goal",
+            "fitness_goal": "fitness_goal",
+            "goal": "fitness_goal",
             "dietaryPreference": "dietary_restrictions",
+            "dietPreference": "dietary_restrictions",
+            "dietary_restrictions": "dietary_restrictions",
             "allergens": "allergens",
+            "allergies": "allergens",
             "dietaryRestrictions": "dietary_restrictions"
         }
 
         for fe_key, be_key in mapping.items():
             if fe_key in updates and updates[fe_key] is not None:
                 val = updates[fe_key]
-                if fe_key == "dietaryPreference":
+                if fe_key in ["dietaryPreference", "dietPreference", "dietary_restrictions"]:
                     # Only override if it's set and valid
-                    if val.lower() in ["veg", "vegetarian", "vegan"]:
+                    if isinstance(val, str) and val.lower() in ["veg", "vegetarian", "vegan"]:
                         profile[be_key] = "vegetarian"
-                elif fe_key == "allergens":
+                    elif isinstance(val, str) and val.lower() in ["non-veg", "non_vegetarian", "nonveg"]:
+                        profile[be_key] = ""
+                    else:
+                        profile[be_key] = val
+                elif fe_key in ["allergens", "allergies"]:
                     profile[be_key] = val if isinstance(val, list) else [val]
                 elif fe_key == "dietaryRestrictions":
                     # Append if there's already something from dietaryPreference
@@ -283,6 +316,17 @@ class ConversationManager:
                         profile["dietary_restrictions"] = f"{existing}, {val}"
                     elif val:
                         profile["dietary_restrictions"] = val
+                elif fe_key in ["fitnessGoal", "fitness_goal", "goal"]:
+                    # Normalize goal values
+                    val_lower = str(val).lower()
+                    if "maintain" in val_lower:
+                        profile[be_key] = "maintenance"
+                    elif "gain" in val_lower or "muscle" in val_lower:
+                        profile[be_key] = "muscle_gain"
+                    elif "lose" in val_lower or "loss" in val_lower:
+                        profile[be_key] = "weight_loss"
+                    else:
+                        profile[be_key] = val
                 else:
                     profile[be_key] = val
 
@@ -313,15 +357,17 @@ class ConversationManager:
             return "Starting fresh! What's your new goal? (lose weight / gain muscle / maintain)"
 
         # ✅ DIRECT PLAN REQUEST HANDLER
-        if "diet plan" in msg_clean or "show plan" in msg_clean or msg_clean == "diet":
+        if any(keyword in msg_clean for keyword in ["diet plan", "show plan", "generate plan", "get plan"]) or msg_clean == "diet":
             # Check if profile is sufficient
             required = ["weight_kg", "height_cm", "age", "activity_level", "fitness_goal"]
-            if all(profile.get(f) is not None for f in required):
+            missing = [f for f in required if profile.get(f) is None]
+            
+            if not missing:
                 conv["current_state"] = self.STATE_READY_FOR_PLAN
                 return self._generate_plan(conv)
             else:
                 # If incomplete, stay in current state but tell them why
-                return "I'd love to give you a diet plan, but I need some more info first. Let's continue!"
+                return f"I'd love to give you a diet plan, but I need some more info first (missing: {', '.join(missing)}). Let's continue!"
 
         # State: Greeting
         if state == self.STATE_GREETING:
