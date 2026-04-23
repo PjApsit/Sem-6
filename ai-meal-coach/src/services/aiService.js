@@ -1,51 +1,65 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-
-const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-001",
-});
+const GROQ_API_KEY = import.meta.env.VITE_GROK_API_KEY;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 /**
- * Send a general query to Gemini with user context
+ * Send a general query to Groq (Llama) with user context
  * @param {string} question - The user's query
  * @param {Object} context - User profile and nutrition context
- * @returns {Promise<string>} Gemini's response
+ * @returns {Promise<string>} Groq's response as a single paragraph
  */
 export async function askGemini(question, context = {}) {
     try {
         const { user, todaysNutrition, dailyGoals } = context;
 
-        let contextPrompt = "You are a personalized fitness and nutrition assistant for the 'AI Meal Coach' app. ";
+        let systemPrompt = "You are a personalized fitness and nutrition assistant for the 'AI Meal Coach' app. ";
 
         if (user) {
-            contextPrompt += `The user is ${user.age} years old, weighs ${user.weight}kg, and is ${user.height}cm tall. Their goal is ${user.fitnessGoal}. `;
+            systemPrompt += `The user is ${user.age} years old, weighs ${user.weight}kg, and is ${user.height}cm tall. Their goal is ${user.fitnessGoal}. `;
             if (user.dietaryRestrictions) {
-                contextPrompt += `They have these dietary restrictions: ${user.dietaryRestrictions}. `;
+                systemPrompt += `They have these dietary restrictions: ${user.dietaryRestrictions}. `;
             }
             if (user.allergens && user.allergens.length > 0) {
-                contextPrompt += `They are allergic to: ${user.allergens.join(', ')}. `;
+                systemPrompt += `They are allergic to: ${user.allergens.join(', ')}. `;
             }
         }
 
         if (todaysNutrition && dailyGoals) {
-            contextPrompt += `Today they have consumed ${Math.round(todaysNutrition.calories)} out of ${dailyGoals.calories} kcal. `;
+            systemPrompt += `Today they have consumed ${Math.round(todaysNutrition.calories)} out of ${dailyGoals.calories} kcal. `;
         }
 
-        const fullPrompt = `${contextPrompt}\n\nUser Question: ${question}\n\nBe helpful, concise, and professional. Avoid medical advice unless it's general nutrition/fitness knowledge.`;
+        systemPrompt += "Always respond in exactly ONE concise paragraph. Do not use bullet points, numbered lists, or markdown headers. Keep your answer helpful, professional, and easy to read in a chat bubble.";
 
-        const result = await model.generateContent(fullPrompt);
-        const response = await result.response;
-        return response.text();
+        const res = await fetch(GROQ_API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: question },
+                ],
+                temperature: 0.7,
+                max_tokens: 300,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err?.error?.message || `Groq API error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content?.trim() || "I'm not sure how to answer that right now.";
     } catch (error) {
-        console.error("Gemini AI error:", error);
-
-        // Handle quota/rate limit errors specifically
-        if (error.status === 429 || error.message?.includes('429')) {
-            return "The AI assistant is currently very busy (quota exceeded). Please wait a minute and try again, or ask a simpler question!";
+        console.error("Groq AI error:", error);
+        if (error.message?.includes('429')) {
+            return "The AI assistant is currently very busy. Please wait a moment and try again.";
         }
-
-        return "I'm sorry, I'm having trouble thinking right now. Please try 'Reset' again later.";
+        return "I'm sorry, I'm having trouble thinking right now. Please try again later.";
     }
 }
 
@@ -90,9 +104,22 @@ export async function getSmartRecommendations(user, dailyGoals, consumed) {
         }
         `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        const res = await fetch(GROQ_API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: GROQ_MODEL,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.3,
+                max_tokens: 400,
+            }),
+        });
+
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content?.trim() || "";
 
         // Extract JSON from potential markdown code blocks
         const jsonMatch = text.match(/\{[\s\S]*\}/);

@@ -7,11 +7,24 @@ import { askGemini } from '@/services/aiService';
 import { cn } from '@/lib/utils';
 
 const quickPrompts = [
-  "Diet plan",
+  "diet plan",
   "New Plan",
   "Weight loss tips",
   "Healthy breakfast options",
 ];
+
+// Strip markdown so AI replies render as clean plain-text paragraphs
+const stripMarkdown = (text) => {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/#{1,6}\s*/g, '')          // remove headings
+    .replace(/\*\*(.+?)\*\*/g, '$1')    // remove bold
+    .replace(/\*(.+?)\*/g, '$1')        // remove italic
+    .replace(/^[\-\*•]\s+/gm, '')       // remove bullet points
+    .replace(/^\d+\.\s+/gm, '')         // remove numbered lists
+    .replace(/\n{3,}/g, '\n\n')         // collapse excess blank lines
+    .trim();
+};
 
 const AIChat = () => {
   const { user, getTodaysNutrition, dailyGoals } = useUser();
@@ -35,6 +48,14 @@ const AIChat = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Keywords that always route to the Flask chat backend — never Groq
+  const BACKEND_KEYWORDS = [
+    'diet plan', 'new plan', 'show plan', 'diet',
+    'meal plan', 'generate plan', 'my plan',
+  ];
+  const isBackendMessage = (text) =>
+    BACKEND_KEYWORDS.some(kw => text.toLowerCase().includes(kw));
+
   const handleSend = async (message) => {
     const text = message || input.trim();
     if (!text || !user) return;
@@ -54,31 +75,36 @@ const AIChat = () => {
       // Get latest nutrition context
       const todaysNutrition = getTodaysNutrition();
 
+      // Force-backend: diet/plan keywords always use the chat backend, never Groq
+      const forceBackend = isBackendMessage(text);
+
       // Call the real Flask API with profile syncing
       const response = await sendChatMessage(text, user?.id || 'default_user', user);
 
       let assistantContent = response.response || response;
 
-      // Check if backend is unsure - if so, fallback to Gemini
+      // Groq fallback triggers — skipped entirely for diet/plan keywords
       const fallbackTriggers = [
         "I'm not sure what you mean",
         "Stick to the plan",
         "Type 'reset' to start over"
       ];
 
-      const isUnsure = fallbackTriggers.some(trigger =>
+      const isUnsure = !forceBackend && fallbackTriggers.some(trigger =>
         typeof assistantContent === 'string' && assistantContent.includes(trigger)
       );
 
-      // Trigger Gemini if backend is unsure
+      // Only fall back to Groq if backend is unsure AND it's not a plan/diet keyword
       if (isUnsure) {
-        console.log('🤖 Backend unsure, falling back to Gemini...');
-        const geminiResponse = await askGemini(text, {
+        console.log('🤖 Backend unsure, falling back to Groq...');
+        const groqResponse = await askGemini(text, {
           user,
           todaysNutrition,
           dailyGoals
         });
-        assistantContent = geminiResponse;
+        assistantContent = stripMarkdown(groqResponse);
+      } else {
+        assistantContent = stripMarkdown(assistantContent);
       }
 
       const assistantMessage = {

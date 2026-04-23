@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Tuple, Optional, Any
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 
 # Add core and root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -92,10 +92,11 @@ class ConversationManager:
         load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-001')
+            self.gemini_client = genai.Client(api_key=api_key)
+            self.gemini_model = "gemini-2.0-flash"
         else:
             print("WARNING: GEMINI_API_KEY not found in environment variables.")
+            self.gemini_client = None
             self.gemini_model = None
 
         # Initialize Models
@@ -174,7 +175,7 @@ class ConversationManager:
 
     def _query_gemini(self, message: str, profile: Dict) -> str:
         """Fallback to Gemini API for general queries or unmatched intents."""
-        if not self.gemini_model:
+        if not self.gemini_client:
             return "I'm not sure what you mean, and I can't connect to my brain right now. Let's stick to the plan!"
 
         try:
@@ -196,7 +197,10 @@ class ConversationManager:
 
             prompt = "\n".join(context_parts)
             
-            response = self.gemini_model.generate_content(prompt)
+            response = self.gemini_client.models.generate_content(
+                model=self.gemini_model,
+                contents=prompt
+            )
             if response and response.text:
                 return response.text
             return "I'm having trouble thinking right now. Let's get back to your fitness plan!"
