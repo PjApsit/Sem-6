@@ -17,7 +17,13 @@ def predict():
         return jsonify({"error": "No image provided"}), 400
 
     file = request.files["image"]
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    filename = file.filename
+    
+    # YOLO support fix: rename .jfif to .jpg
+    if filename.lower().endswith(".jfif"):
+        filename = os.path.splitext(filename)[0] + ".jpg"
+        
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
 
     try:
@@ -28,6 +34,8 @@ def predict():
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
