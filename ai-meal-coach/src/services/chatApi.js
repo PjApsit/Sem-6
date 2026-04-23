@@ -1,6 +1,6 @@
 export const sendChatMessage = async (message, userId = "default_user", profile = null) => {
   try {
-    const response = await fetch("http://localhost:5000/chat", {
+    const response = await fetch("https://ai-meal-coach-chatbot.onrender.com/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
